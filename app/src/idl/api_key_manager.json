@@ -1,0 +1,1347 @@
+{
+  "address": "AhXw9kSv452KwujTWqNpuQcGvVXdkiHp4D2A8SFpLhUp",
+  "metadata": {
+    "name": "api_key_manager",
+    "version": "0.1.0",
+    "spec": "0.1.0"
+  },
+  "instructions": [
+    {
+      "name": "close_usage_account",
+      "discriminator": [
+        58,
+        228,
+        60,
+        198,
+        240,
+        12,
+        49,
+        121
+      ],
+      "accounts": [
+        {
+          "name": "project"
+        },
+        {
+          "name": "api_key"
+        },
+        {
+          "name": "usage",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  97,
+                  103,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "api_key"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "project"
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "create_project",
+      "discriminator": [
+        148,
+        219,
+        181,
+        42,
+        221,
+        114,
+        145,
+        190
+      ],
+      "accounts": [
+        {
+          "name": "project",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  106,
+                  101,
+                  99,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              },
+              {
+                "kind": "arg",
+                "path": "project_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "project_id",
+          "type": {
+            "array": [
+              "u8",
+              16
+            ]
+          }
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "description",
+          "type": "string"
+        },
+        {
+          "name": "default_rate_limit",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "issue_api_key",
+      "discriminator": [
+        22,
+        70,
+        160,
+        59,
+        237,
+        60,
+        195,
+        15
+      ],
+      "accounts": [
+        {
+          "name": "project",
+          "writable": true
+        },
+        {
+          "name": "api_key",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  112,
+                  105,
+                  95,
+                  107,
+                  101,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "project"
+              },
+              {
+                "kind": "arg",
+                "path": "key_index"
+              }
+            ]
+          }
+        },
+        {
+          "name": "usage",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  97,
+                  103,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "api_key"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "project"
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "key_index",
+          "type": "u16"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "key_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "scopes",
+          "type": {
+            "vec": "string"
+          }
+        },
+        {
+          "name": "expires_at",
+          "type": {
+            "option": "u64"
+          }
+        },
+        {
+          "name": "rate_limit_override",
+          "type": {
+            "option": "u32"
+          }
+        }
+      ]
+    },
+    {
+      "name": "reactivate_api_key",
+      "discriminator": [
+        165,
+        35,
+        115,
+        203,
+        150,
+        194,
+        40,
+        241
+      ],
+      "accounts": [
+        {
+          "name": "project",
+          "writable": true,
+          "relations": [
+            "api_key"
+          ]
+        },
+        {
+          "name": "api_key",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  112,
+                  105,
+                  95,
+                  107,
+                  101,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "project"
+              },
+              {
+                "kind": "account",
+                "path": "api_key.key_index",
+                "account": "ApiKey"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "project"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "revoke_api_key",
+      "discriminator": [
+        243,
+        12,
+        2,
+        136,
+        215,
+        55,
+        213,
+        183
+      ],
+      "accounts": [
+        {
+          "name": "project",
+          "writable": true,
+          "relations": [
+            "api_key"
+          ]
+        },
+        {
+          "name": "api_key",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  112,
+                  105,
+                  95,
+                  107,
+                  101,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "project"
+              },
+              {
+                "kind": "account",
+                "path": "api_key.key_index",
+                "account": "ApiKey"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "project"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "rotate_api_key",
+      "discriminator": [
+        241,
+        209,
+        158,
+        47,
+        164,
+        58,
+        145,
+        65
+      ],
+      "accounts": [
+        {
+          "name": "project",
+          "relations": [
+            "api_key"
+          ]
+        },
+        {
+          "name": "api_key",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  112,
+                  105,
+                  95,
+                  107,
+                  101,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "project"
+              },
+              {
+                "kind": "account",
+                "path": "api_key.key_index",
+                "account": "ApiKey"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "project"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "new_key_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "new_expires_at",
+          "type": {
+            "option": "u64"
+          }
+        }
+      ]
+    },
+    {
+      "name": "suspend_api_key",
+      "discriminator": [
+        204,
+        225,
+        184,
+        84,
+        107,
+        191,
+        196,
+        213
+      ],
+      "accounts": [
+        {
+          "name": "project",
+          "writable": true,
+          "relations": [
+            "api_key"
+          ]
+        },
+        {
+          "name": "api_key",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  112,
+                  105,
+                  95,
+                  107,
+                  101,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "project"
+              },
+              {
+                "kind": "account",
+                "path": "api_key.key_index",
+                "account": "ApiKey"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "project"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "transfer_project_authority",
+      "discriminator": [
+        20,
+        33,
+        120,
+        108,
+        211,
+        212,
+        207,
+        247
+      ],
+      "accounts": [
+        {
+          "name": "project",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "project"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "new_authority",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "update_rate_limit",
+      "discriminator": [
+        19,
+        62,
+        173,
+        11,
+        170,
+        140,
+        47,
+        69
+      ],
+      "accounts": [
+        {
+          "name": "project",
+          "relations": [
+            "api_key"
+          ]
+        },
+        {
+          "name": "api_key",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  112,
+                  105,
+                  95,
+                  107,
+                  101,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "project"
+              },
+              {
+                "kind": "account",
+                "path": "api_key.key_index",
+                "account": "ApiKey"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "project"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "new_rate_limit",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "update_scopes",
+      "discriminator": [
+        61,
+        214,
+        163,
+        21,
+        163,
+        1,
+        244,
+        24
+      ],
+      "accounts": [
+        {
+          "name": "project",
+          "relations": [
+            "api_key"
+          ]
+        },
+        {
+          "name": "api_key",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  112,
+                  105,
+                  95,
+                  107,
+                  101,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "project"
+              },
+              {
+                "kind": "account",
+                "path": "api_key.key_index",
+                "account": "ApiKey"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "project"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "new_scopes",
+          "type": {
+            "vec": "string"
+          }
+        }
+      ]
+    },
+    {
+      "name": "verify_api_key",
+      "discriminator": [
+        180,
+        139,
+        232,
+        33,
+        36,
+        242,
+        211,
+        194
+      ],
+      "accounts": [
+        {
+          "name": "api_key",
+          "writable": true
+        },
+        {
+          "name": "usage",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  97,
+                  103,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "api_key"
+              }
+            ]
+          }
+        },
+        {
+          "name": "verifier",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "presented_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "required_scope",
+          "type": {
+            "option": "string"
+          }
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "ApiKey",
+      "discriminator": [
+        145,
+        206,
+        208,
+        16,
+        27,
+        179,
+        228,
+        163
+      ]
+    },
+    {
+      "name": "Project",
+      "discriminator": [
+        205,
+        168,
+        189,
+        202,
+        181,
+        247,
+        142,
+        19
+      ]
+    },
+    {
+      "name": "UsageAccount",
+      "discriminator": [
+        70,
+        40,
+        106,
+        172,
+        83,
+        120,
+        242,
+        136
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "ApiKeyAutoRevoked",
+      "discriminator": [
+        223,
+        221,
+        193,
+        99,
+        159,
+        144,
+        125,
+        228
+      ]
+    },
+    {
+      "name": "ApiKeyIssued",
+      "discriminator": [
+        117,
+        65,
+        99,
+        175,
+        230,
+        107,
+        198,
+        55
+      ]
+    },
+    {
+      "name": "ApiKeyRevoked",
+      "discriminator": [
+        91,
+        214,
+        0,
+        145,
+        95,
+        139,
+        234,
+        194
+      ]
+    },
+    {
+      "name": "ApiKeyRotated",
+      "discriminator": [
+        146,
+        119,
+        71,
+        237,
+        230,
+        128,
+        141,
+        223
+      ]
+    },
+    {
+      "name": "ApiKeyScopesUpdated",
+      "discriminator": [
+        181,
+        90,
+        227,
+        64,
+        77,
+        11,
+        52,
+        56
+      ]
+    },
+    {
+      "name": "ApiKeyVerified",
+      "discriminator": [
+        0,
+        193,
+        0,
+        16,
+        245,
+        51,
+        63,
+        79
+      ]
+    },
+    {
+      "name": "ProjectAuthorityTransferred",
+      "discriminator": [
+        151,
+        209,
+        147,
+        76,
+        220,
+        218,
+        144,
+        111
+      ]
+    },
+    {
+      "name": "ProjectCreated",
+      "discriminator": [
+        192,
+        10,
+        163,
+        29,
+        185,
+        31,
+        67,
+        168
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "Unauthorized",
+      "msg": "Caller is not the project authority"
+    },
+    {
+      "code": 6001,
+      "name": "NameTooLong",
+      "msg": "Name exceeds maximum length"
+    },
+    {
+      "code": 6002,
+      "name": "DescriptionTooLong",
+      "msg": "Description exceeds maximum length"
+    },
+    {
+      "code": 6003,
+      "name": "MaxKeysReached",
+      "msg": "Maximum number of API keys per project reached"
+    },
+    {
+      "code": 6004,
+      "name": "InvalidKeyIndex",
+      "msg": "Key index must equal current total_keys counter"
+    },
+    {
+      "code": 6005,
+      "name": "ExpiryInPast",
+      "msg": "Expiry slot must be in the future"
+    },
+    {
+      "code": 6006,
+      "name": "TooManyScopes",
+      "msg": "Too many scopes (max 8)"
+    },
+    {
+      "code": 6007,
+      "name": "ScopeTooLong",
+      "msg": "Scope string exceeds maximum length"
+    },
+    {
+      "code": 6008,
+      "name": "KeyNotActive",
+      "msg": "API key is not active"
+    },
+    {
+      "code": 6009,
+      "name": "KeyNotSuspended",
+      "msg": "API key is not suspended"
+    },
+    {
+      "code": 6010,
+      "name": "KeyExpired",
+      "msg": "API key has expired"
+    },
+    {
+      "code": 6011,
+      "name": "InvalidKey",
+      "msg": "Invalid API key — hash mismatch"
+    },
+    {
+      "code": 6012,
+      "name": "InsufficientScope",
+      "msg": "Insufficient scope for this operation"
+    },
+    {
+      "code": 6013,
+      "name": "RateLimitExceeded",
+      "msg": "Rate limit exceeded for this key"
+    },
+    {
+      "code": 6014,
+      "name": "InvalidRateLimit",
+      "msg": "Rate limit must be greater than zero"
+    },
+    {
+      "code": 6015,
+      "name": "KeyProjectMismatch",
+      "msg": "API key does not belong to this project"
+    }
+  ],
+  "types": [
+    {
+      "name": "ApiKey",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "project",
+            "type": "pubkey"
+          },
+          {
+            "name": "issued_by",
+            "type": "pubkey"
+          },
+          {
+            "name": "key_index",
+            "type": "u16"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "key_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "scopes",
+            "type": {
+              "vec": "string"
+            }
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "KeyStatus"
+              }
+            }
+          },
+          {
+            "name": "expires_at",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "rate_limit",
+            "type": "u32"
+          },
+          {
+            "name": "created_at",
+            "type": "u64"
+          },
+          {
+            "name": "last_verified_at",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "total_verifications",
+            "type": "u64"
+          },
+          {
+            "name": "failed_verifications",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ApiKeyAutoRevoked",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "project",
+            "type": "pubkey"
+          },
+          {
+            "name": "api_key",
+            "type": "pubkey"
+          },
+          {
+            "name": "reason",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ApiKeyIssued",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "project",
+            "type": "pubkey"
+          },
+          {
+            "name": "api_key",
+            "type": "pubkey"
+          },
+          {
+            "name": "key_index",
+            "type": "u16"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "scopes",
+            "type": {
+              "vec": "string"
+            }
+          },
+          {
+            "name": "expires_at",
+            "type": {
+              "option": "u64"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "ApiKeyRevoked",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "project",
+            "type": "pubkey"
+          },
+          {
+            "name": "api_key",
+            "type": "pubkey"
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ApiKeyRotated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "project",
+            "type": "pubkey"
+          },
+          {
+            "name": "api_key",
+            "type": "pubkey"
+          },
+          {
+            "name": "old_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ApiKeyScopesUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "project",
+            "type": "pubkey"
+          },
+          {
+            "name": "api_key",
+            "type": "pubkey"
+          },
+          {
+            "name": "old_scopes",
+            "type": {
+              "vec": "string"
+            }
+          },
+          {
+            "name": "new_scopes",
+            "type": {
+              "vec": "string"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "ApiKeyVerified",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "project",
+            "type": "pubkey"
+          },
+          {
+            "name": "api_key",
+            "type": "pubkey"
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          },
+          {
+            "name": "request_count",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "KeyStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Revoked"
+          },
+          {
+            "name": "Suspended"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Project",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "project_id",
+            "type": {
+              "array": [
+                "u8",
+                16
+              ]
+            }
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "description",
+            "type": "string"
+          },
+          {
+            "name": "default_rate_limit",
+            "type": "u32"
+          },
+          {
+            "name": "total_keys",
+            "type": "u16"
+          },
+          {
+            "name": "active_keys",
+            "type": "u16"
+          },
+          {
+            "name": "created_at",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProjectAuthorityTransferred",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "project",
+            "type": "pubkey"
+          },
+          {
+            "name": "old_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "new_authority",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProjectCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "project",
+            "type": "pubkey"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "project_id",
+            "type": {
+              "array": [
+                "u8",
+                16
+              ]
+            }
+          },
+          {
+            "name": "name",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "UsageAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "api_key",
+            "type": "pubkey"
+          },
+          {
+            "name": "window_start",
+            "type": "u64"
+          },
+          {
+            "name": "request_count",
+            "type": "u32"
+          },
+          {
+            "name": "last_used_at",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}
