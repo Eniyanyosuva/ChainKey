@@ -1,6 +1,5 @@
 {
-    "buildCommand": "npm run build",
+    "buildCommand": "npm run build --workspace=app",
     "installCommand": "npm install",
-    "framework": "nextjs",
-    "rootDir": "app"
+    "framework": "nextjs"
 }
