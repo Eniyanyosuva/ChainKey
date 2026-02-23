@@ -267,6 +267,7 @@ async function verifyKey(args) {
   console.log(simulate ? "\nSimulating verification (Dry Run)..." : "\nVerifying key on Devnet...\n");
 
   let isValid = false;
+  let response = null; // Declare response here to ensure it's always defined for explorerLink
   if (simulate) {
     const sim = await program.methods
       .verifyApiKey(hash, parseScope(scope))
@@ -277,9 +278,12 @@ async function verifyKey(args) {
         systemProgram: SystemProgram.programId,
       })
       .simulate();
-    isValid = sim.value;
+    isValid = sim.value || sim.events.some(e => e.name === "apiKeyVerified");
+    if (isValid) {
+      console.log("✓ Simulation Successful (Dry Run)");
+    }
   } else {
-    const sig = await program.methods
+    response = await program.methods
       .verifyApiKey(hash, parseScope(scope))
       .accounts({
         apiKey: apiKeyPDA,
@@ -292,7 +296,7 @@ async function verifyKey(args) {
     // Fetch state since RPC returns Ok(false) on mismatch
     const keyState = await program.account.apiKey.fetch(apiKeyPDA);
     isValid = keyState.failedVerifications === 0;
-    console.log("Tx Signature:", sig);
+    console.log("Tx Signature:", response);
   }
 
   if (!isValid) {
@@ -309,7 +313,7 @@ async function verifyKey(args) {
   log("Requests:", usage.requestCount + " / " + key.rateLimit + " in window");
   log("Remaining:", (key.rateLimit - usage.requestCount) + " requests left");
   log("Scopes (hex):", "0x" + key.scopes.toString(16));
-  log("Explorer:", explorerLink(sig));
+  if (response) log("Explorer:", explorerLink(response));
   divider();
 }
 
