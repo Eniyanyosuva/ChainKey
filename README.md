@@ -208,8 +208,6 @@ node cli/index.js verify --project-id <hex> --secret sk_... --scope 0x01 --simul
 
 # Example output:
 # ✓ Key valid | Scope: 0x07 | Requests: 47/1000 | Window resets in 312s
-
-![CLI Visual Guide](file:///Users/enjo/.gemini/antigravity/brain/42f5cf25-fbe3-4167-8a09-12accb112016/media__1771811853205.png)
 ```
 *Note: The CLI supports the `--url` flag to use custom RPC endpoints, bypassing public Devnet rate limits.*
 
