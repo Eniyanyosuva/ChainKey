@@ -332,9 +332,7 @@
         },
         {
           "name": "scopes",
-          "type": {
-            "vec": "string"
-          }
+          "type": "u64"
         },
         {
           "name": "expires_at",
@@ -755,9 +753,7 @@
       "args": [
         {
           "name": "new_scopes",
-          "type": {
-            "vec": "string"
-          }
+          "type": "u64"
         }
       ]
     },
@@ -822,9 +818,7 @@
         },
         {
           "name": "required_scope",
-          "type": {
-            "option": "string"
-          }
+          "type": "u64"
         }
       ],
       "returns": "bool"
@@ -1097,9 +1091,7 @@
           },
           {
             "name": "scopes",
-            "type": {
-              "vec": "string"
-            }
+            "type": "u64"
           },
           {
             "name": "status",
@@ -1187,9 +1179,7 @@
           },
           {
             "name": "scopes",
-            "type": {
-              "vec": "string"
-            }
+            "type": "u64"
           },
           {
             "name": "expires_at",
@@ -1264,15 +1254,11 @@
           },
           {
             "name": "old_scopes",
-            "type": {
-              "vec": "string"
-            }
+            "type": "u64"
           },
           {
             "name": "new_scopes",
-            "type": {
-              "vec": "string"
-            }
+            "type": "u64"
           }
         ]
       }
