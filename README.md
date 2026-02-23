@@ -189,7 +189,12 @@ The protocol implements a fixed-window rate-limiting algorithm leveraging the So
 
 ---
 
-## UX & Client Usability
+## UX & Client Usability 
+
+### Live Verification Dashboard
+Visualizes on-chain state and allows for real-time key management.
+Live Dashboard -> https://chain-key-app.vercel.app
+(Visualizes PDA balances, usage slots, key status, and revocation events)
 
 ### CLI Usage Examples
 ChainKey ships with a robust TypeScript CLI for administrative tasks.
@@ -211,11 +216,6 @@ node cli/index.js verify --project-id <hex> --secret sk_... --scope 0x01 --simul
 ```
 *Note: The CLI supports the `--url` flag to use custom RPC endpoints, bypassing public Devnet rate limits.*
 
-### Live Verification Dashboard
-Visualizes on-chain state and allows for real-time key management.
-Live Dashboard -> https://chain-key-app.vercel.app
-(Visualizes PDA balances, usage slots, key status, and revocation events)
-
 ---
 
 ## Devnet Deployment
@@ -226,15 +226,6 @@ Live Dashboard -> https://chain-key-app.vercel.app
 | **Network** | Solana Devnet |
 | **Explorer** | [View Program](https://explorer.solana.com/address/EWGBn5r5sA9nyDyfkRNzBsr85KiMi5TUd1KY7fiQvdpF?cluster=devnet) |
 | **Deployment Tx** | [View Transaction](https://explorer.solana.com/tx/5umZHSYfAdwRwDHdqaz7FtwnCNCcpggcxVopC9Wh5WqT2B1GX4Kp5rVSveqGpNmVMWCP7s1ZywTpszygAiJDBYcN?cluster=devnet) |
-
----
-
-## Project Refinement Summary
-
-- **Core Logic**: Scope refactor (`u64` bitmask) is fully implemented and verified with 32/32 tests passing.
-- **Frontend**: Multi-wallet support (Phantom, Solflare, Backpack) is active, and build issues are resolved.
-- **CLI**: Fully synchronized with bitwise permissioning and new scope-management commands.
-- **Docs**: README overhauled to professional, emoji-free technical standards with formal cost/concurrency models.
 
 ---
 
@@ -259,6 +250,6 @@ ChainKey demonstrates the transition from centralized middleware to decentralize
 - **Distributed Backend Runtime**: This project showcases Solana as a high-performance distributed backend runtime rather than just a financial platform.
 
 ---
-**Build for the Solana Rebuild Hacks | EWGBn5r5sA9nyDyfkRNzBsr85KiMi5TUd1KY7fiQvdpF**
+**Build on Solana | EWGBn5r5sA9nyDyfkRNzBsr85KiMi5TUd1KY7fiQvdpF**
 ## License
 MIT
