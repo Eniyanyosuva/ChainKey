@@ -1,8 +1,14 @@
-import * as anchor from "@coral-xyz/anchor";
-import { Program } from "@coral-xyz/anchor";
+import anchor from "@coral-xyz/anchor";
+const { Program, BN } = anchor;
 import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import { createHash } from "crypto";
 import { assert } from "chai";
+
+const SCOPE_NONE = new BN(0);
+const SCOPE_READ = new BN(1);
+const SCOPE_WRITE = new BN(2);
+const SCOPE_ADMIN = new BN(4);
+const SCOPE_ALL = new BN("ffffffffffffffff", 16);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -54,7 +60,7 @@ describe("ChainKey — API Key Manager", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
-  const program = anchor.workspace.ApiKeyManager as Program<any>;
+  const program = anchor.workspace.ApiKeyManager as any;
   const authority = provider.wallet as anchor.Wallet;
 
   let projectId: number[];
@@ -171,7 +177,7 @@ describe("ChainKey — API Key Manager", () => {
           0,
           "Production Key",
           keyHash,
-          ["read:data", "write:data"],
+          SCOPE_READ.or(SCOPE_WRITE),
           null,
           null
         )
@@ -188,7 +194,7 @@ describe("ChainKey — API Key Manager", () => {
 
       const key = await program.account.apiKey.fetch(apiKeyPDA);
       assert.equal(key.name, "Production Key");
-      assert.deepEqual(key.scopes, ["read:data", "write:data"]);
+      assert.ok(key.scopes.eq(SCOPE_READ.or(SCOPE_WRITE)));
       assert.deepEqual(key.status, { active: {} });
       assert.equal(key.rateLimit, 1000); // inherited default
 
@@ -209,7 +215,7 @@ describe("ChainKey — API Key Manager", () => {
           1,
           "Read-Only Key",
           sha256("another_secret"),
-          ["read:data"],
+          SCOPE_READ,
           null,
           50
         )
@@ -224,7 +230,7 @@ describe("ChainKey — API Key Manager", () => {
 
       const key = await program.account.apiKey.fetch(key1PDA);
       assert.equal(key.rateLimit, 50);
-      assert.deepEqual(key.scopes, ["read:data"]);
+      assert.ok(key.scopes.eq(SCOPE_READ));
 
       const project = await program.account.project.fetch(projectPDA);
       assert.equal(project.totalKeys, 2);
@@ -236,7 +242,7 @@ describe("ChainKey — API Key Manager", () => {
       const badUsagePDA = getUsagePDA(badPDA, program.programId);
       try {
         await program.methods
-          .issueApiKey(99, "Bad Key", sha256("x"), [], null, null)
+          .issueApiKey(99, "Bad Key", sha256("x"), SCOPE_NONE, null, null)
           .accounts({
             project: projectPDA,
             apiKey: badPDA,
@@ -251,32 +257,6 @@ describe("ChainKey — API Key Manager", () => {
       }
     });
 
-    it("Rejects too many scopes (>8)", async () => {
-      const key2PDA = getApiKeyPDA(projectPDA, 2, program.programId);
-      const usage2PDA = getUsagePDA(key2PDA, program.programId);
-      try {
-        await program.methods
-          .issueApiKey(
-            2,
-            "Too Many Scopes",
-            sha256("x"),
-            ["s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9"],
-            null,
-            null
-          )
-          .accounts({
-            project: projectPDA,
-            apiKey: key2PDA,
-            usage: usage2PDA,
-            authority: authority.publicKey,
-            systemProgram: SystemProgram.programId,
-          })
-          .rpc();
-        assert.fail("Should have thrown");
-      } catch (e: any) {
-        assert.include(e.message, "TooManyScopes");
-      }
-    });
   });
 
   // ── 3. Verification ───────────────────────────────────────────────────────
@@ -284,7 +264,7 @@ describe("ChainKey — API Key Manager", () => {
   describe("3. Verification", () => {
     it("Verifies correct hash", async () => {
       const tx = await program.methods
-        .verifyApiKey(keyHash, null)
+        .verifyApiKey(keyHash, SCOPE_NONE)
         .accounts({
           apiKey: apiKeyPDA,
           usage: usagePDA,
@@ -305,7 +285,7 @@ describe("ChainKey — API Key Manager", () => {
 
     it("Verifies with scope check", async () => {
       await program.methods
-        .verifyApiKey(keyHash, "read:data")
+        .verifyApiKey(keyHash, SCOPE_READ)
         .accounts({
           apiKey: apiKeyPDA,
           usage: usagePDA,
@@ -318,27 +298,26 @@ describe("ChainKey — API Key Manager", () => {
       assert.equal(usage.requestCount, 2);
     });
 
-    it("Rejects wrong hash", async () => {
-      try {
-        await program.methods
-          .verifyApiKey(sha256("wrong_secret"), null)
-          .accounts({
-            apiKey: apiKeyPDA,
-            usage: usagePDA,
-            verifier: authority.publicKey,
-            systemProgram: SystemProgram.programId,
-          })
-          .rpc();
-        assert.fail("Should have thrown");
-      } catch (e: any) {
-        assert.include(e.message, "InvalidKey");
-      }
+    it("Increments failed_verifications on wrong hash (RPC)", async () => {
+      const before = await (program.account as any).apiKey.fetch(apiKeyPDA);
+      await program.methods
+        .verifyApiKey(sha256("wrong_secret"), SCOPE_NONE)
+        .accounts({
+          apiKey: apiKeyPDA,
+          usage: usagePDA,
+          verifier: authority.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      const after = await (program.account as any).apiKey.fetch(apiKeyPDA);
+      assert.isAbove(after.failedVerifications, before.failedVerifications);
     });
 
     it("Rejects insufficient scope", async () => {
       try {
         await program.methods
-          .verifyApiKey(keyHash, "admin:delete")
+          .verifyApiKey(keyHash, SCOPE_ADMIN)
           .accounts({
             apiKey: apiKeyPDA,
             usage: usagePDA,
@@ -352,19 +331,18 @@ describe("ChainKey — API Key Manager", () => {
       }
     });
 
-    it("Increments failed_verifications on bad hash", async () => {
+    it("Increments failed_verifications on bad hash and persists state", async () => {
       const before = await program.account.apiKey.fetch(apiKeyPDA);
-      try {
-        await program.methods
-          .verifyApiKey(sha256("bad_attempt"), null)
-          .accounts({
-            apiKey: apiKeyPDA,
-            usage: usagePDA,
-            verifier: authority.publicKey,
-            systemProgram: SystemProgram.programId,
-          })
-          .rpc();
-      } catch { }
+
+      await program.methods
+        .verifyApiKey(sha256("bad_attempt"), SCOPE_NONE)
+        .accounts({
+          apiKey: apiKeyPDA,
+          usage: usagePDA,
+          verifier: authority.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
 
       const after = await program.account.apiKey.fetch(apiKeyPDA);
       assert.isAbove(after.failedVerifications, before.failedVerifications);
@@ -372,7 +350,7 @@ describe("ChainKey — API Key Manager", () => {
 
     it("Resets failed_verifications on success", async () => {
       await program.methods
-        .verifyApiKey(keyHash, null)
+        .verifyApiKey(keyHash, SCOPE_NONE)
         .accounts({
           apiKey: apiKeyPDA,
           usage: usagePDA,
@@ -383,6 +361,57 @@ describe("ChainKey — API Key Manager", () => {
 
       const key = await program.account.apiKey.fetch(apiKeyPDA);
       assert.equal(key.failedVerifications, 0);
+    });
+
+    it("Automatically revokes key after 10 failed attempts", async () => {
+      const revokeKeyIdx = 2;
+      const revokeKeyPDA = getApiKeyPDA(projectPDA, revokeKeyIdx, program.programId);
+      const revokeUsagePDA = getUsagePDA(revokeKeyPDA, program.programId);
+      const revokeSecret = "sk_to_be_revoked_123";
+      const revokeHash = sha256(revokeSecret);
+
+      // Issue the key
+      await program.methods
+        .issueApiKey(revokeKeyIdx, "Revoke Me", revokeHash, SCOPE_READ, null, null)
+        .accounts({
+          project: projectPDA,
+          apiKey: revokeKeyPDA,
+          usage: revokeUsagePDA,
+          authority: authority.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      for (let i = 0; i < 10; i++) {
+        await program.methods
+          .verifyApiKey(sha256("wrong_secret_threshold"), SCOPE_NONE)
+          .accounts({
+            apiKey: revokeKeyPDA,
+            usage: revokeUsagePDA,
+            verifier: authority.publicKey,
+            systemProgram: SystemProgram.programId,
+          })
+          .rpc();
+      }
+
+      const key = await program.account.apiKey.fetch(revokeKeyPDA);
+      assert.deepEqual(key.status, { revoked: {} });
+
+      // Verify it can no longer be used even with correct secret
+      try {
+        await program.methods
+          .verifyApiKey(revokeHash, SCOPE_NONE)
+          .accounts({
+            apiKey: revokeKeyPDA,
+            usage: revokeUsagePDA,
+            verifier: authority.publicKey,
+            systemProgram: SystemProgram.programId,
+          })
+          .rpc();
+        assert.fail("Key should be revoked");
+      } catch (e: any) {
+        assert.include(e.message, "KeyNotActive");
+      }
     });
   });
 
@@ -418,7 +447,7 @@ describe("ChainKey — API Key Manager", () => {
       rlUsagePDA = getUsagePDA(rlKeyPDA, program.programId);
 
       await program.methods
-        .issueApiKey(0, "RL Key", rlHash, ["read:data"], null, null)
+        .issueApiKey(0, "RL Key", rlHash, SCOPE_READ, null, null)
         .accounts({
           project: rlProjectPDA,
           apiKey: rlKeyPDA,
@@ -433,7 +462,7 @@ describe("ChainKey — API Key Manager", () => {
       // 3 requests, limit is 3 — all should pass
       for (let i = 0; i < 3; i++) {
         await program.methods
-          .verifyApiKey(rlHash, null)
+          .verifyApiKey(rlHash, SCOPE_NONE)
           .accounts({
             apiKey: rlKeyPDA,
             usage: rlUsagePDA,
@@ -451,7 +480,7 @@ describe("ChainKey — API Key Manager", () => {
       // 4th request should fail
       try {
         await program.methods
-          .verifyApiKey(rlHash, null)
+          .verifyApiKey(rlHash, SCOPE_NONE)
           .accounts({
             apiKey: rlKeyPDA,
             usage: rlUsagePDA,
@@ -473,11 +502,15 @@ describe("ChainKey — API Key Manager", () => {
 
     before(async () => {
       attacker = Keypair.generate();
-      const sig = await provider.connection.requestAirdrop(
-        attacker.publicKey,
-        1_000_000_000
-      );
-      await provider.connection.confirmTransaction(sig);
+      try {
+        const sig = await provider.connection.requestAirdrop(
+          attacker.publicKey,
+          1_000_000_000
+        );
+        await provider.connection.confirmTransaction(sig);
+      } catch (e) {
+        console.log("    Airdrop failed, but continuing as attacker might already have funds or it might not be strictly needed for failure tests");
+      }
     });
 
     it("Rejects issue from non-authority", async () => {
@@ -486,7 +519,7 @@ describe("ChainKey — API Key Manager", () => {
 
       try {
         await program.methods
-          .issueApiKey(2, "Hacked Key", sha256("hacker"), ["*"], null, null)
+          .issueApiKey(2, "Hacked Key", sha256("hacker"), SCOPE_ALL, null, null)
           .accounts({
             project: projectPDA,
             apiKey: key2PDA,
@@ -523,7 +556,7 @@ describe("ChainKey — API Key Manager", () => {
     it("Rejects scope update from non-authority", async () => {
       try {
         await program.methods
-          .updateScopes(["admin:*"])
+          .updateScopes(SCOPE_ADMIN)
           .accounts({
             project: projectPDA,
             apiKey: apiKeyPDA,
@@ -560,7 +593,7 @@ describe("ChainKey — API Key Manager", () => {
   describe("6. Updates", () => {
     it("Updates scopes", async () => {
       await program.methods
-        .updateScopes(["read:data", "write:data", "admin:read"])
+        .updateScopes(SCOPE_ALL)
         .accounts({
           project: projectPDA,
           apiKey: apiKeyPDA,
@@ -569,7 +602,7 @@ describe("ChainKey — API Key Manager", () => {
         .rpc();
 
       const key = await program.account.apiKey.fetch(apiKeyPDA);
-      assert.deepEqual(key.scopes, ["read:data", "write:data", "admin:read"]);
+      assert.ok(key.scopes.eq(SCOPE_ALL));
     });
 
     it("Updates rate limit", async () => {
@@ -612,26 +645,25 @@ describe("ChainKey — API Key Manager", () => {
       assert.equal(key.failedVerifications, 0);
     });
 
-    it("Old hash fails after rotation", async () => {
-      try {
-        await program.methods
-          .verifyApiKey(keyHash, null)
-          .accounts({
-            apiKey: apiKeyPDA,
-            usage: usagePDA,
-            verifier: authority.publicKey,
-            systemProgram: SystemProgram.programId,
-          })
-          .rpc();
-        assert.fail("Old hash should fail");
-      } catch (e: any) {
-        assert.include(e.message, "InvalidKey");
-      }
+    it("Increments failed_verifications on old hash after rotation", async () => {
+      const before = await (program.account as any).apiKey.fetch(apiKeyPDA);
+      await program.methods
+        .verifyApiKey(keyHash, SCOPE_NONE)
+        .accounts({
+          apiKey: apiKeyPDA,
+          usage: usagePDA,
+          verifier: authority.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      const after = await (program.account as any).apiKey.fetch(apiKeyPDA);
+      assert.isAbove(after.failedVerifications, before.failedVerifications);
     });
 
     it("New hash works", async () => {
       const tx = await program.methods
-        .verifyApiKey(sha256(newSecret), null)
+        .verifyApiKey(sha256(newSecret), SCOPE_NONE)
         .accounts({
           apiKey: apiKeyPDA,
           usage: usagePDA,
@@ -657,7 +689,7 @@ describe("ChainKey — API Key Manager", () => {
       lcUsagePDA = getUsagePDA(lcKeyPDA, program.programId);
 
       await program.methods
-        .issueApiKey(idx, "Lifecycle Key", sha256("lc_secret"), ["read:data"], null, null)
+        .issueApiKey(idx, "Lifecycle Key", sha256("lc_secret"), SCOPE_READ, null, null)
         .accounts({
           project: projectPDA,
           apiKey: lcKeyPDA,
@@ -685,7 +717,7 @@ describe("ChainKey — API Key Manager", () => {
     it("Suspended key fails verification", async () => {
       try {
         await program.methods
-          .verifyApiKey(sha256("lc_secret"), null)
+          .verifyApiKey(sha256("lc_secret"), SCOPE_NONE)
           .accounts({
             apiKey: lcKeyPDA,
             usage: lcUsagePDA,
@@ -715,7 +747,7 @@ describe("ChainKey — API Key Manager", () => {
 
     it("Reactivated key verifies again", async () => {
       await program.methods
-        .verifyApiKey(sha256("lc_secret"), null)
+        .verifyApiKey(sha256("lc_secret"), SCOPE_NONE)
         .accounts({
           apiKey: lcKeyPDA,
           usage: lcUsagePDA,
@@ -747,7 +779,7 @@ describe("ChainKey — API Key Manager", () => {
     it("Revoked key can never verify", async () => {
       try {
         await program.methods
-          .verifyApiKey(sha256("lc_secret"), null)
+          .verifyApiKey(sha256("lc_secret"), SCOPE_NONE)
           .accounts({
             apiKey: lcKeyPDA,
             usage: lcUsagePDA,

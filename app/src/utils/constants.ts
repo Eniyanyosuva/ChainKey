@@ -1,6 +1,6 @@
 import { PublicKey } from "@solana/web3.js";
 
-export const PROGRAM_ID = new PublicKey("AhXw9kSv452KwujTWqNpuQcGvVXdkiHp4D2A8SFpLhUp");
+export const PROGRAM_ID = new PublicKey("EWGBn5r5sA9nyDyfkRNzBsr85KiMi5TUd1KY7fiQvdpF");
 
 export const PROJECT_SEED = Buffer.from("project");
 export const API_KEY_SEED = Buffer.from("api_key");

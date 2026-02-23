@@ -1,14 +1,12 @@
 use anchor_lang::prelude::*;
 
-declare_id!("AhXw9kSv452KwujTWqNpuQcGvVXdkiHp4D2A8SFpLhUp");
+declare_id!("EWGBn5r5sA9nyDyfkRNzBsr85KiMi5TUd1KY7fiQvdpF");
 
-pub const MAX_KEY_NAME_LEN: usize = 64;
-pub const MAX_SCOPES: usize = 8;
-pub const MAX_SCOPE_LEN: usize = 32;
 pub const MAX_KEYS_PER_PROJECT: u16 = 100;
 pub const MAX_PROJECT_NAME_LEN: usize = 64;
 pub const MAX_PROJECT_DESC_LEN: usize = 128;
 pub const RATE_WINDOW_SLOTS: u64 = 216_000; // ~24 hours at 400ms/slot
+pub const MAX_KEY_NAME_LEN: usize = 64;
 
 pub const PROJECT_SEED: &[u8] = b"project";
 pub const API_KEY_SEED: &[u8] = b"api_key";
@@ -78,13 +76,11 @@ pub mod api_key_manager {
         key_index: u16,
         name: String,
         key_hash: [u8; 32],
-        scopes: Vec<String>,
+        scopes: u64,
         expires_at: Option<u64>,
         rate_limit_override: Option<u32>,
     ) -> Result<()> {
         require!(name.len() <= MAX_KEY_NAME_LEN, ApiKeyError::NameTooLong);
-        require!(scopes.len() <= MAX_SCOPES, ApiKeyError::TooManyScopes);
-        require!(scopes.iter().all(|s| s.len() <= MAX_SCOPE_LEN), ApiKeyError::ScopeTooLong);
 
         let project_key = ctx.accounts.project.key();
         let api_key_key = ctx.accounts.api_key.key();
@@ -132,7 +128,7 @@ pub mod api_key_manager {
 
         let api_key = &ctx.accounts.api_key;
         let emit_name = api_key.name.clone();
-        let emit_scopes = api_key.scopes.clone();
+        let emit_scopes = api_key.scopes;
 
         emit!(ApiKeyIssued {
             project: project_key,
@@ -149,8 +145,8 @@ pub mod api_key_manager {
     pub fn verify_api_key(
         ctx: Context<VerifyApiKey>,
         presented_hash: [u8; 32],
-        required_scope: Option<String>,
-    ) -> Result<()> {
+        required_scope: u64,
+    ) -> Result<bool> {
         let clock = Clock::get()?;
 
         let api_key_key = ctx.accounts.api_key.key();
@@ -178,12 +174,12 @@ pub mod api_key_manager {
                     reason: "too_many_failed_verifications".to_string(),
                 });
             }
-            return Err(ApiKeyError::InvalidKey.into());
+            return Ok(false);
         }
 
-        if let Some(scope) = required_scope {
+        if required_scope > 0 {
             require!(
-                api_key.scopes.contains(&scope) || api_key.scopes.contains(&"*".to_string()),
+                (api_key.scopes & required_scope) == required_scope,
                 ApiKeyError::InsufficientScope
             );
         }
@@ -212,9 +208,10 @@ pub mod api_key_manager {
             api_key: api_key_key,
             slot: clock.slot,
             request_count,
+            is_valid: true,
         });
 
-        Ok(())
+        Ok(true)
     }
 
     pub fn rotate_api_key(
@@ -248,24 +245,21 @@ pub mod api_key_manager {
 
     pub fn update_scopes(
         ctx: Context<UpdateApiKey>,
-        new_scopes: Vec<String>,
+        new_scopes: u64,
     ) -> Result<()> {
-        require!(new_scopes.len() <= MAX_SCOPES, ApiKeyError::TooManyScopes);
-        require!(new_scopes.iter().all(|s| s.len() <= MAX_SCOPE_LEN), ApiKeyError::ScopeTooLong);
 
         let api_key_key = ctx.accounts.api_key.key();
         let project_key = ctx.accounts.api_key.project;
 
         let api_key = &mut ctx.accounts.api_key;
-        let old_scopes = api_key.scopes.clone();
+        let old_scopes = api_key.scopes;
         api_key.scopes = new_scopes;
-        let new_scopes_emit = api_key.scopes.clone();
 
         emit!(ApiKeyScopesUpdated {
             project: project_key,
             api_key: api_key_key,
             old_scopes,
-            new_scopes: new_scopes_emit,
+            new_scopes,
         });
 
         Ok(())
@@ -317,6 +311,16 @@ pub mod api_key_manager {
     pub fn close_usage_account(_ctx: Context<CloseUsageAccount>) -> Result<()> {
         Ok(())
     }
+
+    pub fn close_api_key(_ctx: Context<CloseApiKey>) -> Result<()> {
+        Ok(())
+    }
+
+    pub fn close_project(ctx: Context<CloseProject>) -> Result<()> {
+        let project = &ctx.accounts.project;
+        require!(project.total_keys == 0, ApiKeyError::ProjectHasKeys);
+        Ok(())
+    }
 }
 
 // ── Accounts ─────────────────────────────────────────────────────────────────
@@ -355,7 +359,7 @@ pub struct ApiKey {
     pub key_index: u16,
     pub name: String,
     pub key_hash: [u8; 32],
-    pub scopes: Vec<String>,
+    pub scopes: u64,
     pub status: KeyStatus,
     pub expires_at: Option<u64>,
     pub rate_limit: u32,
@@ -373,7 +377,7 @@ impl ApiKey {
         + 2
         + 4 + MAX_KEY_NAME_LEN
         + 32
-        + 4 + MAX_SCOPES * (4 + MAX_SCOPE_LEN)
+        + 8
         + 1
         + 1 + 8
         + 4
@@ -560,6 +564,42 @@ pub struct CloseUsageAccount<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[derive(Accounts)]
+pub struct CloseApiKey<'info> {
+    #[account(
+        seeds = [PROJECT_SEED, authority.key().as_ref(), &project.project_id],
+        bump = project.bump,
+        has_one = authority @ ApiKeyError::Unauthorized,
+    )]
+    pub project: Account<'info, Project>,
+    #[account(
+        mut,
+        close = authority,
+        seeds = [API_KEY_SEED, project.key().as_ref(), &api_key.key_index.to_le_bytes()],
+        bump = api_key.bump,
+        has_one = project @ ApiKeyError::KeyProjectMismatch,
+    )]
+    pub api_key: Account<'info, ApiKey>,
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct CloseProject<'info> {
+    #[account(
+        mut,
+        close = authority,
+        seeds = [PROJECT_SEED, authority.key().as_ref(), &project.project_id],
+        bump = project.bump,
+        has_one = authority @ ApiKeyError::Unauthorized,
+    )]
+    pub project: Account<'info, Project>,
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
 // ── Events ───────────────────────────────────────────────────────────────────
 
 #[event]
@@ -583,7 +623,7 @@ pub struct ApiKeyIssued {
     pub api_key: Pubkey,
     pub key_index: u16,
     pub name: String,
-    pub scopes: Vec<String>,
+    pub scopes: u64,
     pub expires_at: Option<u64>,
 }
 
@@ -593,6 +633,7 @@ pub struct ApiKeyVerified {
     pub api_key: Pubkey,
     pub slot: u64,
     pub request_count: u32,
+    pub is_valid: bool,
 }
 
 #[event]
@@ -607,8 +648,8 @@ pub struct ApiKeyRotated {
 pub struct ApiKeyScopesUpdated {
     pub project: Pubkey,
     pub api_key: Pubkey,
-    pub old_scopes: Vec<String>,
-    pub new_scopes: Vec<String>,
+    pub old_scopes: u64,
+    pub new_scopes: u64,
 }
 
 #[event]
@@ -661,6 +702,8 @@ pub enum ApiKeyError {
     InvalidRateLimit,
     #[msg("API key does not belong to this project")]
     KeyProjectMismatch,
+    #[msg("Cannot close project while it still has keys. Close all keys first.")]
+    ProjectHasKeys,
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

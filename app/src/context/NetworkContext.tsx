@@ -54,23 +54,8 @@ const NetworkContext = createContext<NetworkContextValue>({
 });
 
 export function NetworkProvider({ children }: { children: ReactNode }) {
-    const [networkId, setNetworkId] = useState<NetworkId>(() => {
-        if (typeof window !== "undefined") {
-            const saved = localStorage.getItem("chainkey-network");
-            if (saved && saved in NETWORKS) return saved as NetworkId;
-        }
-        return "devnet";
-    });
-
-    const setNetwork = useCallback((id: NetworkId) => {
-        setNetworkId(id);
-        if (typeof window !== "undefined") {
-            localStorage.setItem("chainkey-network", id);
-        }
-    }, []);
-
     return (
-        <NetworkContext.Provider value={{ network: NETWORKS[networkId], setNetwork }}>
+        <NetworkContext.Provider value={{ network: NETWORKS.devnet, setNetwork: () => { } }}>
             {children}
         </NetworkContext.Provider>
     );

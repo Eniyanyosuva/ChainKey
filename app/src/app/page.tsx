@@ -66,53 +66,56 @@ export default function HomePage() {
                         marginBottom: 32,
                     }}>
                         <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#10b981" }} />
-                        Live on Solana Devnet
+                        Deployed on Solana Devnet
                     </div>
 
                     <h1 style={{
-                        fontSize: "clamp(36px, 6vw, 72px)",
+                        fontSize: "clamp(36px, 5vw, 64px)",
                         fontWeight: 800,
-                        lineHeight: 1.08,
+                        lineHeight: 1.1,
                         letterSpacing: "-2px",
+                        fontFamily: "'Outfit', sans-serif",
                         color: "#f1f5f9",
-                        marginBottom: 20,
-                        maxWidth: 700,
+                        marginBottom: 24,
+                        maxWidth: 800,
                     }}>
-                        On-Chain API Key Management
+                        Deterministic API Key <br /> State Machine on Solana
                     </h1>
 
                     <p style={{
-                        fontSize: 17,
+                        fontSize: 18,
                         color: "var(--text2)",
-                        maxWidth: 520,
-                        lineHeight: 1.7,
-                        marginBottom: 12,
+                        maxWidth: 600,
+                        lineHeight: 1.6,
+                        marginBottom: 16,
                     }}>
-                        Replace your backend auth with a Solana program.
+                        Replaces traditional DB + Redis key infrastructure <br /> with deterministic, atomic on-chain state transitions.
                     </p>
 
                     <p style={{
                         fontSize: 14,
                         color: "var(--text3)",
                         fontFamily: "'JetBrains Mono', monospace",
-                        letterSpacing: ".5px",
-                        marginBottom: 40,
+                        letterSpacing: "1px",
+                        marginBottom: 48,
+                        textTransform: "uppercase",
+                        opacity: 0.8
                     }}>
-                        No database. No Redis. No servers.
+                        No database. &nbsp; No Redis. &nbsp; No background workers.
                     </p>
 
-                    <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
+                    <div style={{ display: "flex", gap: 16, flexWrap: "wrap", justifyContent: "center" }}>
                         {publicKey ? (
                             <Link href="/dashboard" className="btn-landing" style={{
                                 background: "rgba(16,185,129,0.15)",
                                 borderColor: "rgba(16,185,129,0.3)",
                                 color: "#10b981",
                             }}>
-                                Launch App →
+                                Interact →
                             </Link>
                         ) : (
                             <div className="wallet-btn-wrap">
-                                <WalletMultiButton />
+                                <WalletMultiButton>Interact</WalletMultiButton>
                             </div>
                         )}
                         <a
@@ -121,10 +124,7 @@ export default function HomePage() {
                             rel="noopener noreferrer"
                             className="btn-landing"
                         >
-                            GitHub
-                        </a>
-                        <a href="#how" className="btn-landing">
-                            Docs
+                            Source Code
                         </a>
                     </div>
                 </section>

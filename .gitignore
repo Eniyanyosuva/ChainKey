@@ -17,6 +17,7 @@ deploy-config.json
 /app/.next/
 /app/out/
 /app/build/
+/.vercel/
 /app/node_modules/
 /node_modules/
 *.tsbuildinfo

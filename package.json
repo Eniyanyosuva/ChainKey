@@ -9,7 +9,8 @@
     "test": "anchor test",
     "build": "anchor build",
     "deploy": "anchor deploy --provider.cluster devnet",
-    "cli": "ts-node cli/src/index.ts"
+    "dev": "npm run dev --workspace=app",
+    "cli": "node cli/index.js"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",

@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
-import { getProgram, randomProjectId, createProject } from "../../utils/chainkey";
+import { getProgram, randomProjectId, createProject, handleTransactionError } from "../../utils/chainkey";
+import { useToast } from "../../context/ToastContext";
 
 interface Props {
     onClose: () => void;
@@ -12,24 +13,27 @@ interface Props {
 export default function CreateProjectModal({ onClose, onSuccess }: Props) {
     const { publicKey, wallet } = useWallet();
     const { connection } = useConnection();
+    const { showToast } = useToast();
     const [name, setName] = useState("");
     const [description, setDescription] = useState("");
     const [rateLimit, setRateLimit] = useState("1000");
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState("");
+    const [error, setError] = useState<{ title: string; message: string; type: string } | null>(null);
 
     const submit = async () => {
         if (!publicKey || !wallet) return;
         setLoading(true);
-        setError("");
+        setError(null);
         try {
             const program = getProgram(wallet.adapter, connection);
+            if (!program) return;
             const projectId = randomProjectId();
             await createProject(program, publicKey, projectId, name, description, parseInt(rateLimit));
+            showToast("Success", "Project created successfully", "success");
             onSuccess();
             onClose();
         } catch (e: any) {
-            setError(e.message);
+            setError(handleTransactionError(e));
         } finally {
             setLoading(false);
         }
@@ -80,9 +84,9 @@ export default function CreateProjectModal({ onClose, onSuccess }: Props) {
                 </div>
 
                 {error && (
-                    <div className="result-box result-error" style={{ marginBottom: 16 }}>
-                        <div className="result-title">Error</div>
-                        <div className="result-detail">{error}</div>
+                    <div className={`result-box result-${error.type}`} style={{ marginBottom: 16 }}>
+                        <div className="result-title">{error.title}</div>
+                        <div className="result-detail">{error.message}</div>
                     </div>
                 )}
 

@@ -3,10 +3,12 @@
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { useEffect, useState } from "react";
 import { getProgram, fetchAllProjects, fetchAllKeysForProject, keyStatus } from "../../../utils/chainkey";
+import { useNetwork } from "../../../context/NetworkContext";
 
 export default function AnalyticsPage() {
     const { publicKey, wallet } = useWallet();
     const { connection } = useConnection();
+    const { network } = useNetwork();
     const [stats, setStats] = useState({
         projects: 0,
         totalKeys: 0,
@@ -24,25 +26,28 @@ export default function AnalyticsPage() {
                 const program = getProgram(wallet.adapter, connection);
                 const projects = await fetchAllProjects(program, publicKey);
 
+                const allKeysResults = await Promise.all(
+                    projects.map(p => fetchAllKeysForProject(program, p.pda, p.keyCount || 0))
+                );
+
                 let totalKeys = 0;
                 let activeKeys = 0;
                 let revokedKeys = 0;
                 let totalUsage = 0;
 
-                for (const p of projects) {
-                    const keys = await fetchAllKeysForProject(program, p.pda, p.keyCount || 0);
+                for (const keys of allKeysResults) {
                     totalKeys += keys.length;
                     for (const k of keys) {
                         const s = keyStatus(k.status);
                         if (s === "Active") activeKeys++;
                         if (s === "Revoked") revokedKeys++;
-                        totalUsage += k.usageCount || 0;
+                        totalUsage += k.totalVerifications ? k.totalVerifications.toNumber() : (k.usageCount || 0);
                     }
                 }
 
                 setStats({ projects: projects.length, totalKeys, activeKeys, revokedKeys, totalUsage });
             } catch (e) {
-                console.error(e);
+                console.error("Analytics fetch error:", e);
             }
             setLoading(false);
         })();
@@ -90,7 +95,7 @@ export default function AnalyticsPage() {
                     <div className="stat-label">Network</div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
                         <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#10b981" }} />
-                        <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text1)" }}>Devnet</span>
+                        <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text1)" }}>{network.label}</span>
                     </div>
                 </div>
             </div>

@@ -7,7 +7,10 @@ import { PublicKey } from "@solana/web3.js";
 import {
     getProgram, getApiKeyPDA,
     fetchAllKeysForProject, keyStatus,
+    handleTransactionError, renderBN, renderScopes,
+    closeUsageAccount, closeApiKey, closeProject,
 } from "../../../utils/chainkey";
+import { useToast } from "../../../context/ToastContext";
 import CopyButton from "../../../components/CopyButton";
 import IssueKeyModal from "../../../components/modals/IssueKeyModal";
 import VerifyKeyModal from "../../../components/modals/VerifyKeyModal";
@@ -21,6 +24,7 @@ export default function ProjectPage() {
     const projectPdaStr = params.projectId as string;
     const { publicKey, wallet } = useWallet();
     const { connection } = useConnection();
+    const { showToast } = useToast();
 
     const [project, setProject] = useState<any>(null);
     const [keys, setKeys] = useState<any[]>([]);
@@ -71,7 +75,76 @@ export default function ProjectPage() {
                 authority: publicKey,
             }).rpc();
             await load();
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            const err = handleTransactionError(e);
+            showToast(err.title, err.message, err.type);
+        }
+        setActionLoading(false);
+    };
+
+    const suspendKey = async (k: any) => {
+        if (!publicKey || !wallet || !projectPda) return;
+        setActionLoading(true);
+        try {
+            const program = getProgram(wallet.adapter, connection);
+            await program.methods.suspendApiKey().accounts({
+                apiKey: k.pda,
+                project: projectPda,
+                authority: publicKey,
+            }).rpc();
+            await load();
+        } catch (e) {
+            const err = handleTransactionError(e);
+            showToast(err.title, err.message, err.type);
+        }
+        setActionLoading(false);
+    };
+
+    const reactivateKey = async (k: any) => {
+        if (!publicKey || !wallet || !projectPda) return;
+        setActionLoading(true);
+        try {
+            const program = getProgram(wallet.adapter, connection);
+            await program.methods.reactivateApiKey().accounts({
+                apiKey: k.pda,
+                project: projectPda,
+                authority: publicKey,
+            }).rpc();
+            await load();
+        } catch (e) {
+            const err = handleTransactionError(e);
+            showToast(err.title, err.message, err.type);
+        }
+        setActionLoading(false);
+    };
+
+    const handleDeleteProject = async () => {
+        if (!publicKey || !wallet || !projectPda) return;
+        const confirmed = window.confirm("Are you sure you want to delete this project? This will permanently revoke and close ALL keys and reclaim all SOL rent. This action cannot be undone.");
+        if (!confirmed) return;
+
+        setActionLoading(true);
+        try {
+            const program = getProgram(wallet.adapter, connection);
+            showToast("Cleanup Started", "Closing all keys and usage accounts...", "info");
+
+            // 1. Close all usage accounts and api keys
+            for (const k of keys) {
+                if (k.usage) {
+                    await closeUsageAccount(program, publicKey, projectPda, k.pda);
+                }
+                await closeApiKey(program, publicKey, projectPda, k.pda);
+            }
+
+            // 2. Close project account
+            await closeProject(program, publicKey, projectPda);
+
+            showToast("Success", "Project and all accounts deleted. Rent reclaimed.", "success");
+            window.location.href = "/dashboard";
+        } catch (e) {
+            const err = handleTransactionError(e);
+            showToast(err.title, err.message, err.type);
+        }
         setActionLoading(false);
     };
 
@@ -177,7 +250,15 @@ export default function ProjectPage() {
                                     </div>
                                     <div className="key-meta-item">
                                         <div className="key-meta-label">Scopes</div>
-                                        <div className="key-meta-value">{k.scopes?.join(", ") || "—"}</div>
+                                        <div className="key-meta-value" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                            {renderScopes(k.scopes)}
+                                        </div>
+                                    </div>
+                                    <div className="key-meta-item">
+                                        <div className="key-meta-label">Last Active</div>
+                                        <div className="key-meta-value">
+                                            {k.lastVerifiedAt ? `Slot ${renderBN(k.lastVerifiedAt)}` : "Never"}
+                                        </div>
                                     </div>
                                 </div>
 
@@ -191,6 +272,32 @@ export default function ProjectPage() {
                                             <button className="btn-sm" onClick={() => setShowRotate(k)}>Rotate</button>
                                             <button className="btn-sm" onClick={() => setShowScopes(k)}>Scopes</button>
                                             <button className="btn-sm" onClick={() => setShowRateLimit(k)}>Limit</button>
+                                            <button
+                                                className="btn-sm warning"
+                                                disabled={actionLoading}
+                                                onClick={() => suspendKey(k)}
+                                            >
+                                                Suspend
+                                            </button>
+                                            <button
+                                                className="btn-sm danger"
+                                                disabled={actionLoading}
+                                                onClick={() => revokeKey(k)}
+                                            >
+                                                Revoke
+                                            </button>
+                                        </>
+                                    )}
+                                    {st === "Suspended" && (
+                                        <>
+                                            <button
+                                                className="btn-sm"
+                                                style={{ border: "1px solid var(--success)", color: "var(--success)" }}
+                                                disabled={actionLoading}
+                                                onClick={() => reactivateKey(k)}
+                                            >
+                                                Reactivate
+                                            </button>
                                             <button
                                                 className="btn-sm danger"
                                                 disabled={actionLoading}
@@ -206,6 +313,26 @@ export default function ProjectPage() {
                     })}
                 </div>
             )}
+
+            {/* Danger Zone */}
+            <div style={{ marginTop: 60, borderTop: "1px solid var(--border)", paddingTop: 32, marginBottom: 40 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: "var(--danger)", textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 12 }}>
+                    Danger Zone
+                </h3>
+                <div style={{ background: "rgba(239, 68, 68, 0.05)", border: "1px solid rgba(239, 68, 68, 0.2)", borderRadius: 12, padding: 20, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                        <div style={{ fontWeight: 600, color: "var(--text1)", marginBottom: 4 }}>Delete Project</div>
+                        <div style={{ fontSize: 13, color: "var(--text3)" }}>Once you delete a project, all its API keys are revoked and accounts are closed. This action is permanent.</div>
+                    </div>
+                    <button
+                        className="btn btn-danger"
+                        disabled={actionLoading}
+                        onClick={handleDeleteProject}
+                    >
+                        {actionLoading ? "Deleting..." : "Delete Project"}
+                    </button>
+                </div>
+            </div>
 
             {/* Modals */}
             {showIssue && (

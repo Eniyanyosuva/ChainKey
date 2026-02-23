@@ -1,11 +1,106 @@
 {
-  "address": "AhXw9kSv452KwujTWqNpuQcGvVXdkiHp4D2A8SFpLhUp",
+  "address": "EWGBn5r5sA9nyDyfkRNzBsr85KiMi5TUd1KY7fiQvdpF",
   "metadata": {
     "name": "api_key_manager",
     "version": "0.1.0",
     "spec": "0.1.0"
   },
   "instructions": [
+    {
+      "name": "close_api_key",
+      "discriminator": [
+        23,
+        150,
+        32,
+        107,
+        194,
+        98,
+        36,
+        209
+      ],
+      "accounts": [
+        {
+          "name": "project",
+          "relations": [
+            "api_key"
+          ]
+        },
+        {
+          "name": "api_key",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  112,
+                  105,
+                  95,
+                  107,
+                  101,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "project"
+              },
+              {
+                "kind": "account",
+                "path": "api_key.key_index",
+                "account": "ApiKey"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "project"
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_project",
+      "discriminator": [
+        117,
+        209,
+        53,
+        106,
+        93,
+        55,
+        112,
+        49
+      ],
+      "accounts": [
+        {
+          "name": "project",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "project"
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
     {
       "name": "close_usage_account",
       "discriminator": [
@@ -731,7 +826,8 @@
             "option": "string"
           }
         }
-      ]
+      ],
+      "returns": "bool"
     }
   ],
   "accounts": [
@@ -961,6 +1057,11 @@
       "code": 6015,
       "name": "KeyProjectMismatch",
       "msg": "API key does not belong to this project"
+    },
+    {
+      "code": 6016,
+      "name": "ProjectHasKeys",
+      "msg": "Cannot close project while it still has keys. Close all keys first."
     }
   ],
   "types": [
@@ -1196,6 +1297,10 @@
           {
             "name": "request_count",
             "type": "u32"
+          },
+          {
+            "name": "is_valid",
+            "type": "bool"
           }
         ]
       }

@@ -5,15 +5,18 @@ anchor_version = "0.32.1"
 resolution = true
 skip-lint = false
 
+[programs.devnet]
+api_key_manager = "EWGBn5r5sA9nyDyfkRNzBsr85KiMi5TUd1KY7fiQvdpF"
+
 [programs.testnet]
-api_key_manager = "AhXw9kSv452KwujTWqNpuQcGvVXdkiHp4D2A8SFpLhUp"
+api_key_manager = "EWGBn5r5sA9nyDyfkRNzBsr85KiMi5TUd1KY7fiQvdpF"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "testnet"
+cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+test = "npx ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"

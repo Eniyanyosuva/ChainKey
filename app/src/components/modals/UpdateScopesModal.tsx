@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
-import { getProgram, updateScopes } from "../../utils/chainkey";
+import { getProgram, updateScopes, SCOPE_READ, SCOPE_WRITE, SCOPE_ADMIN, SCOPE_NONE, handleTransactionError } from "../../utils/chainkey";
+import { BN } from "@coral-xyz/anchor";
+import { useToast } from "../../context/ToastContext";
 
 interface Props {
     keyData: any;
@@ -15,30 +17,43 @@ interface Props {
 export default function UpdateScopesModal({ keyData, projectPDA, onClose, onSuccess }: Props) {
     const { publicKey, wallet } = useWallet();
     const { connection } = useConnection();
-    const [scopes, setScopes] = useState<string[]>([...keyData.scopes]);
-    const [scopeInput, setScopeInput] = useState("");
+    const { showToast } = useToast();
+    const [selectedScopes, setSelectedScopes] = useState<BN>(new BN(keyData.scopes));
+    const [customMask, setCustomMask] = useState("");
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState("");
+    const [error, setError] = useState<{ title: string; message: string; type: string } | null>(null);
 
-    const addScope = () => {
-        const s = scopeInput.trim();
-        if (s && !scopes.includes(s) && scopes.length < 8) {
-            setScopes([...scopes, s]);
-            setScopeInput("");
+    const toggleScope = (mask: BN) => {
+        if (selectedScopes.and(mask).gt(SCOPE_NONE)) {
+            setSelectedScopes(selectedScopes.xor(mask));
+        } else {
+            setSelectedScopes(selectedScopes.or(mask));
         }
     };
-    const removeScope = (s: string) => setScopes(scopes.filter((x) => x !== s));
 
     const submit = async () => {
         if (!publicKey || !wallet) return;
         setLoading(true);
-        setError("");
+        setError(null);
         try {
             const program = getProgram(wallet.adapter, connection);
-            await updateScopes(program, publicKey, projectPDA, keyData.pda, scopes);
+
+            let finalScopes = selectedScopes;
+            if (customMask) {
+                try {
+                    const mask = customMask.startsWith("0x") ? new BN(customMask.slice(2), 16) : new BN(customMask);
+                    finalScopes = finalScopes.or(mask);
+                } catch (e) {
+                    throw new Error("Invalid custom bitmask");
+                }
+            }
+
+            await updateScopes(program, publicKey, projectPDA, keyData.pda, finalScopes);
+            showToast("Success", "Scopes updated successfully", "success");
             onSuccess();
+            onClose();
         } catch (e: any) {
-            setError(e.message);
+            setError(handleTransactionError(e));
         } finally {
             setLoading(false);
         }
@@ -57,33 +72,34 @@ export default function UpdateScopesModal({ keyData, projectPDA, onClose, onSucc
                 </p>
 
                 <div className="form-group">
-                    <label className="form-label">Scopes (max 8)</label>
-                    <div className="scope-tags">
-                        {scopes.map(s => (
-                            <span key={s} className="scope-tag">
-                                {s}
-                                <button className="scope-tag-remove" onClick={() => removeScope(s)}>×</button>
-                            </span>
-                        ))}
-                        {scopes.length === 0 && <span style={{ fontSize: 13, color: "var(--text3)" }}>No scopes</span>}
+                    <label className="form-label">Permissions (Scopes)</label>
+                    <div className="checkbox-group" style={{ display: "flex", gap: 15, marginBottom: 10 }}>
+                        <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                            <input type="checkbox" checked={selectedScopes.and(SCOPE_READ).gt(SCOPE_NONE)} onChange={() => toggleScope(SCOPE_READ)} />
+                            READ
+                        </label>
+                        <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                            <input type="checkbox" checked={selectedScopes.and(SCOPE_WRITE).gt(SCOPE_NONE)} onChange={() => toggleScope(SCOPE_WRITE)} />
+                            WRITE
+                        </label>
+                        <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                            <input type="checkbox" checked={selectedScopes.and(SCOPE_ADMIN).gt(SCOPE_NONE)} onChange={() => toggleScope(SCOPE_ADMIN)} />
+                            ADMIN
+                        </label>
                     </div>
-                    <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                        <input
-                            className="form-input"
-                            value={scopeInput}
-                            onChange={e => setScopeInput(e.target.value)}
-                            onKeyDown={e => e.key === "Enter" && addScope()}
-                            placeholder="add:scope (press Enter)"
-                        />
-                        <button className="btn btn-outline" onClick={addScope} disabled={scopes.length >= 8}>Add</button>
-                    </div>
-                    <div className="form-hint">Use * for wildcard (admin) access.</div>
+                    <input
+                        className="form-input"
+                        value={customMask}
+                        onChange={e => setCustomMask(e.target.value)}
+                        placeholder="Custom Mask (e.g. 0x08 for bit 3)"
+                    />
+                    <div className="form-hint">ChainKey bitmasks are atomic and efficient. Toggle standard scopes or provide a custom hex mask.</div>
                 </div>
 
                 {error && (
-                    <div className="result-box result-error" style={{ marginBottom: 16 }}>
-                        <div className="result-title">Error</div>
-                        <div className="result-detail">{error}</div>
+                    <div className={`result-box result-${error.type}`} style={{ marginBottom: 16 }}>
+                        <div className="result-title">{error.title}</div>
+                        <div className="result-detail">{error.message}</div>
                     </div>
                 )}
 

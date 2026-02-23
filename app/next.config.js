@@ -16,6 +16,10 @@ const nextConfig = {
             path: false,
             crypto: false,
         };
+        config.externals.push({
+            bufferutil: "bufferutil",
+            "utf-8-validate": "utf-8-validate",
+        });
         return config;
     },
 };

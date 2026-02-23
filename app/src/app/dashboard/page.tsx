@@ -5,10 +5,12 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { getProgram, fetchAllProjects, renderBN } from "../../utils/chainkey";
 import CreateProjectModal from "../../components/modals/CreateProjectModal";
+import { useNetwork } from "../../context/NetworkContext";
 
 export default function DashboardPage() {
     const { publicKey, wallet } = useWallet();
     const { connection } = useConnection();
+    const { network } = useNetwork();
     const [projects, setProjects] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [showCreate, setShowCreate] = useState(false);
@@ -55,13 +57,24 @@ export default function DashboardPage() {
                 </div>
                 <div className="stat-card">
                     <div className="stat-label">Network</div>
-                    <div className="stat-value" style={{ fontSize: 20 }}>Devnet</div>
+                    <div className="stat-value" style={{ fontSize: 20 }}>{network.label}</div>
                 </div>
                 <div className="stat-card">
                     <div className="stat-label">Status</div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#10b981" }} />
-                        <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text1)" }}>Connected</span>
+                        <span style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: "50%",
+                            background: publicKey ? "#10b981" : "#64748b"
+                        }} />
+                        <span style={{
+                            fontSize: 16,
+                            fontWeight: 700,
+                            color: publicKey ? "var(--text1)" : "var(--text3)"
+                        }}>
+                            {publicKey ? "Connected" : "Disconnected"}
+                        </span>
                     </div>
                 </div>
             </div>

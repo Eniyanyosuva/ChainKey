@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;500;600;700;800;900&display=swap');
 
 /* ── Design Tokens ─────────────────────────────────────────────────────────── */
 :root {
@@ -119,9 +119,11 @@ body::before {
   font-weight: 600 !important;
   font-family: 'Inter', sans-serif !important;
   font-size: 13px !important;
-  padding: 7px 16px !important;
+  padding: 10px 22px !important;
   height: auto !important;
   line-height: 1.4 !important;
+  min-width: 140px !important;
+  justify-content: center !important;
 }
 
 /* ── Landing ───────────────────────────────────────────────────────────────── */
@@ -782,6 +784,11 @@ tr:hover td {
   border: 1px solid rgba(239, 68, 68, 0.25);
 }
 
+.result-warning {
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
 .result-title {
   font-size: 16px;
   font-weight: 800;
@@ -794,6 +801,10 @@ tr:hover td {
 
 .result-error .result-title {
   color: var(--danger);
+}
+
+.result-warning .result-title {
+  color: var(--warning);
 }
 
 .result-detail {
@@ -985,19 +996,18 @@ tr:hover td {
 }
 
 .dash-sidebar {
-  width: 220px;
+  width: 260px;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  padding: 20px 12px;
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(7, 8, 16, 0.92);
-  backdrop-filter: blur(16px);
+  padding: 24px 16px;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(8, 9, 20, 0.95);
+  backdrop-filter: blur(24px);
   position: fixed;
   top: 0;
   left: 0;
   z-index: 200;
-  transform: translateX(-100%);
   transition: transform .25s ease;
 }
 
@@ -1053,15 +1063,15 @@ tr:hover td {
 .dash-logo {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 16px;
+  gap: 12px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 18px;
   font-weight: 800;
-  background: linear-gradient(135deg, #8b5cf6, #06b6d4);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--text1);
   text-decoration: none;
   padding: 0 8px;
-  margin-bottom: 28px;
+  margin-bottom: 32px;
+  letter-spacing: -0.5px;
 }
 
 .dash-nav {
@@ -1074,24 +1084,28 @@ tr:hover td {
 .dash-nav-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
-  border-radius: 8px;
-  font-size: 13px;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13.5px;
   font-weight: 500;
   color: var(--text3);
   text-decoration: none;
-  transition: all .15s;
+  transition: all .2s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid transparent;
 }
 
 .dash-nav-item:hover {
   color: var(--text1);
   background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.04);
 }
 
 .dash-nav-item.active {
   color: var(--text1);
   background: rgba(139, 92, 246, 0.1);
+  border-color: rgba(139, 92, 246, 0.15);
+  box-shadow: inset 0 0 0 1px rgba(139, 92, 246, 0.05);
 }
 
 .dash-sidebar-footer {
@@ -1156,16 +1170,34 @@ tr:hover td {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  margin-left: 260px;
+  width: calc(100% - 260px);
+  transition: margin-left .25s ease, width .25s ease;
+}
+
+@media (max-width: 1024px) {
+  .dash-sidebar {
+    transform: translateX(-100%);
+  }
+
+  .dash-main {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .sidebar-toggle {
+    display: flex !important;
+  }
 }
 
 .dash-topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 28px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(7, 8, 16, 0.4);
-  backdrop-filter: blur(12px);
+  padding: 16px 32px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(8, 9, 20, 0.6);
+  backdrop-filter: blur(16px);
   position: sticky;
   top: 0;
   z-index: 50;
@@ -1173,7 +1205,10 @@ tr:hover td {
 
 .dash-content {
   flex: 1;
-  padding: 28px;
+  padding: 32px;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 /* ── Stat Cards ──────────────────────────────────────────────────────────── */
@@ -1379,6 +1414,7 @@ tr:hover td {
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.04);
   transition: all .15s;
+  min-width: 140px;
 }
 
 .btn-landing:hover {

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { NetworkProvider } from "../context/NetworkContext";
 import WalletContextProvider from "../components/WalletProvider";
+import { ToastProvider } from "../context/ToastContext";
 
 export const metadata: Metadata = {
     title: "ChainKey — On-Chain Access Control Layer",
@@ -17,7 +18,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <body suppressHydrationWarning>
                 <NetworkProvider>
                     <WalletContextProvider>
-                        <main>{children}</main>
+                        <ToastProvider>
+                            <main>{children}</main>
+                        </ToastProvider>
                     </WalletContextProvider>
                 </NetworkProvider>
             </body>

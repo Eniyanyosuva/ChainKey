@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
-import { getProgram, updateRateLimit, renderBN } from "../../utils/chainkey";
+import { getProgram, updateRateLimit, renderBN, handleTransactionError } from "../../utils/chainkey";
+import { useToast } from "../../context/ToastContext";
 
 interface Props {
     keyData: any;
@@ -15,22 +16,25 @@ interface Props {
 export default function UpdateRateLimitModal({ keyData, projectPDA, onClose, onSuccess }: Props) {
     const { publicKey, wallet } = useWallet();
     const { connection } = useConnection();
+    const { showToast } = useToast();
     const [rateLimit, setRateLimit] = useState(String(keyData.rateLimit));
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState("");
+    const [error, setError] = useState<{ title: string; message: string; type: string } | null>(null);
 
     const submit = async () => {
         if (!publicKey || !wallet) return;
         const val = parseInt(rateLimit);
-        if (!val || val < 1) { setError("Rate limit must be ≥ 1"); return; }
+        if (!val || val < 1) { setError({ title: "Invalid Input", message: "Rate limit must be ≥ 1", type: "warning" }); return; }
         setLoading(true);
-        setError("");
+        setError(null);
         try {
             const program = getProgram(wallet.adapter, connection);
             await updateRateLimit(program, publicKey, projectPDA, keyData.pda, val);
+            showToast("Success", "Rate limit updated", "success");
             onSuccess();
+            onClose();
         } catch (e: any) {
-            setError(e.message);
+            setError(handleTransactionError(e));
         } finally {
             setLoading(false);
         }
@@ -62,9 +66,9 @@ export default function UpdateRateLimitModal({ keyData, projectPDA, onClose, onS
                 </div>
 
                 {error && (
-                    <div className="result-box result-error" style={{ marginBottom: 16 }}>
-                        <div className="result-title">Error</div>
-                        <div className="result-detail">{error}</div>
+                    <div className={`result-box result-${error.type}`} style={{ marginBottom: 16 }}>
+                        <div className="result-title">{error.title}</div>
+                        <div className="result-detail">{error.message}</div>
                     </div>
                 )}
 

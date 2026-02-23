@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
-import { getProgram, issueApiKey, sha256Browser, generateSecret, getApiKeyPDA, renderBN } from "../../utils/chainkey";
+import { getProgram, issueApiKey, sha256Browser, generateSecret, SCOPE_READ, SCOPE_WRITE, SCOPE_ADMIN, SCOPE_NONE, renderBN, handleTransactionError } from "../../utils/chainkey";
+import { BN } from "@coral-xyz/anchor";
+import { useToast } from "../../context/ToastContext";
 
 interface Props {
     projectPDA: PublicKey;
@@ -16,37 +18,50 @@ interface Props {
 export default function IssueKeyModal({ projectPDA, currentKeyCount, defaultRateLimit, onClose, onSuccess }: Props) {
     const { publicKey, wallet } = useWallet();
     const { connection } = useConnection();
+    const { showToast } = useToast();
     const [name, setName] = useState("");
-    const [scopeInput, setScopeInput] = useState("");
-    const [scopes, setScopes] = useState<string[]>(["read:data"]);
+    const [selectedScopes, setSelectedScopes] = useState<BN>(SCOPE_READ);
+    const [customMask, setCustomMask] = useState("");
     const [rateOverride, setRateOverride] = useState("");
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState("");
+    const [error, setError] = useState<{ title: string; message: string; type: string } | null>(null);
     const [secret, setSecret] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
 
-    const addScope = () => {
-        const s = scopeInput.trim();
-        if (s && !scopes.includes(s) && scopes.length < 8) {
-            setScopes([...scopes, s]);
-            setScopeInput("");
+    const toggleScope = (mask: BN) => {
+        if (selectedScopes.and(mask).gt(SCOPE_NONE)) {
+            setSelectedScopes(selectedScopes.xor(mask));
+        } else {
+            setSelectedScopes(selectedScopes.or(mask));
         }
     };
-    const removeScope = (s: string) => setScopes(scopes.filter((x) => x !== s));
 
     const submit = async () => {
         if (!publicKey || !wallet) return;
         setLoading(true);
-        setError("");
+        setError(null);
         try {
+            const program = getProgram(wallet.adapter, connection);
+            if (!program) return;
             const rawSecret = generateSecret();
             const keyHash = await sha256Browser(rawSecret);
-            const program = getProgram(wallet.adapter, connection);
             const rateLimit = rateOverride ? parseInt(rateOverride) : null;
-            await issueApiKey(program, publicKey, projectPDA, currentKeyCount, name, keyHash, scopes, null, rateLimit);
+
+            let finalScopes = selectedScopes;
+            if (customMask) {
+                try {
+                    const mask = customMask.startsWith("0x") ? new BN(customMask.slice(2), 16) : new BN(customMask);
+                    finalScopes = finalScopes.or(mask);
+                } catch (e) {
+                    throw new Error("Invalid custom bitmask");
+                }
+            }
+
+            await issueApiKey(program, publicKey, projectPDA, currentKeyCount, name, keyHash, finalScopes, null, rateLimit);
+            showToast("Success", "API Key issued", "success");
             setSecret(rawSecret);
         } catch (e: any) {
-            setError(e.message);
+            setError(handleTransactionError(e));
         } finally {
             setLoading(false);
         }
@@ -96,26 +111,28 @@ export default function IssueKeyModal({ projectPDA, currentKeyCount, defaultRate
                 </div>
 
                 <div className="form-group">
-                    <label className="form-label">Scopes</label>
-                    <div className="scope-tags">
-                        {scopes.map(s => (
-                            <span key={s} className="scope-tag">
-                                {s}
-                                <button className="scope-tag-remove" onClick={() => removeScope(s)}>×</button>
-                            </span>
-                        ))}
+                    <label className="form-label">Permissions (Scopes)</label>
+                    <div className="checkbox-group" style={{ display: "flex", gap: 15, marginBottom: 10 }}>
+                        <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                            <input type="checkbox" checked={selectedScopes.and(SCOPE_READ).gt(SCOPE_NONE)} onChange={() => toggleScope(SCOPE_READ)} />
+                            READ
+                        </label>
+                        <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                            <input type="checkbox" checked={selectedScopes.and(SCOPE_WRITE).gt(SCOPE_NONE)} onChange={() => toggleScope(SCOPE_WRITE)} />
+                            WRITE
+                        </label>
+                        <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                            <input type="checkbox" checked={selectedScopes.and(SCOPE_ADMIN).gt(SCOPE_NONE)} onChange={() => toggleScope(SCOPE_ADMIN)} />
+                            ADMIN
+                        </label>
                     </div>
-                    <div style={{ display: "flex", gap: 8 }}>
-                        <input
-                            className="form-input"
-                            value={scopeInput}
-                            onChange={e => setScopeInput(e.target.value)}
-                            onKeyDown={e => e.key === "Enter" && addScope()}
-                            placeholder="read:data (press Enter)"
-                        />
-                        <button className="btn btn-outline" onClick={addScope} disabled={scopes.length >= 8}>Add</button>
-                    </div>
-                    <div className="form-hint">Max 8 scopes. Use * for wildcard access.</div>
+                    <input
+                        className="form-input"
+                        value={customMask}
+                        onChange={e => setCustomMask(e.target.value)}
+                        placeholder="Custom Mask (e.g. 0x08 for bit 3)"
+                    />
+                    <div className="form-hint">ChainKey now uses a u64 bitmask for efficient, high-performance scope checking.</div>
                 </div>
 
                 <div className="form-group">
@@ -136,9 +153,9 @@ export default function IssueKeyModal({ projectPDA, currentKeyCount, defaultRate
                 </div>
 
                 {error && (
-                    <div className="result-box result-error" style={{ marginTop: 12 }}>
-                        <div className="result-title">Error</div>
-                        <div className="result-detail">{error}</div>
+                    <div className={`result-box result-${error.type}`} style={{ marginTop: 12 }}>
+                        <div className="result-title">{error.title}</div>
+                        <div className="result-detail">{error.message}</div>
                     </div>
                 )}
 

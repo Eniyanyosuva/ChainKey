@@ -1,7 +1,7 @@
 "use client";
 
 import StatusBadge from "../StatusBadge";
-import { keyStatus, explorerLink, renderBN } from "../../utils/chainkey";
+import { keyStatus, explorerLink, renderBN, renderScopes } from "../../utils/chainkey";
 
 interface Props {
     keyData: any;
@@ -39,9 +39,7 @@ export default function InspectKeyModal({ keyData, onClose }: Props) {
                 <Row label="Key Hash (SHA-256)" value={<span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}>{hashHex.slice(0, 16)}...{hashHex.slice(-8)}</span>} />
                 <Row label="Scopes" value={
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 4, justifyContent: "flex-end" }}>
-                        {keyData.scopes.length ? keyData.scopes.map((s: string) => (
-                            <span className="scope-pill" key={s}>{s}</span>
-                        )) : <span style={{ color: "var(--text3)" }}>None</span>}
+                        <span className="scope-pill">{renderScopes(keyData.scopes)}</span>
                     </div>
                 } />
                 <Row label="Rate Limit" value={`${renderBN(keyData.rateLimit)} req / 24h`} />
