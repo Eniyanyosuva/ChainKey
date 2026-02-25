@@ -45,19 +45,17 @@ export default function VerifyKeyModal({ keyData, onClose }: Props) {
 
             let isValid = true;
             if (dryRun) {
-                // Triple-Check for Success:
-                // 1. Direct return value (Anchor 0.30+)
-                // 2. Parsed events (Anchor coder)
-                // 3. Raw logs (Universal fallback)
-                const hasValue = response.value === true;
-                const hasEvent = response.events?.some((e: any) => e.name === "ApiKeyVerified");
+                // Determine simulation success from multiple signals
+                const hasTrueValue = response === true || (response && response.value === true);
+                const hasEvent = response.events?.some((e: any) => e.name === "ApiKeyVerified" && e.data?.isValid === true);
                 const hasSuccessLog = response.logs?.some((l: string) =>
                     l.includes("ApiKeyVerified") ||
                     l.includes("Program return: 1") ||
-                    l.includes("Program return: AQ==") // Base64 for 1 (true)
+                    l.includes("Program return: AQ==") ||
+                    l.toLowerCase().includes("success")
                 );
 
-                isValid = hasValue || hasEvent || hasSuccessLog;
+                isValid = hasTrueValue || hasEvent || hasSuccessLog;
             } else {
                 // For RPC, we check if failedVerifications is 0 (it resets on success)
                 const key = await (program.account as any).apiKey.fetch(keyData.pda);

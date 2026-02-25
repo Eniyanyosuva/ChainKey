@@ -178,8 +178,10 @@ export async function verifyApiKey(
     simulate: boolean = false
 ): Promise<any> {
     const usagePDA = getUsagePDA(apiKeyPDA);
+    // Explicitly convert Uint8Array to number array for Anchor compatibility
+    const hashArray = Array.from(presentedHash);
     const method = program.methods
-        .verifyApiKey(presentedHash, requiredScope)
+        .verifyApiKey(hashArray, requiredScope)
         .accounts({ apiKey: apiKeyPDA, usage: usagePDA, verifier: wallet });
 
     if (simulate) {
@@ -193,10 +195,11 @@ export async function rotateApiKey(
     wallet: PublicKey,
     projectPDA: PublicKey,
     apiKeyPDA: PublicKey,
-    newKeyHash: Uint8Array
+    newKeyHash: Uint8Array,
+    expiresAt: BN | null = null
 ): Promise<string> {
     return program.methods
-        .rotateApiKey(newKeyHash, SCOPE_NONE)
+        .rotateApiKey(newKeyHash, expiresAt)
         .accounts({ project: projectPDA, apiKey: apiKeyPDA, authority: wallet })
         .rpc();
 }
@@ -299,6 +302,17 @@ export async function closeProject(
 ): Promise<string> {
     return program.methods
         .closeProject()
+        .accounts({ project: projectPDA, authority: wallet })
+        .rpc();
+}
+
+export async function closeProjectForced(
+    program: any,
+    wallet: PublicKey,
+    projectPDA: PublicKey
+): Promise<string> {
+    return program.methods
+        .closeProjectForced()
         .accounts({ project: projectPDA, authority: wallet })
         .rpc();
 }

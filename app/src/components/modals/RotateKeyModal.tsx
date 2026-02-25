@@ -30,10 +30,9 @@ export default function RotateKeyModal({ keyData, projectPDA, onClose, onSuccess
             const rawSecret = generateSecret();
             const hash = await sha256Browser(rawSecret);
             const program = getProgram(wallet.adapter, connection);
-            await rotateApiKey(program, publicKey, projectPDA, keyData.pda, hash);
+            await rotateApiKey(program, publicKey, projectPDA, keyData.pda, hash, keyData.expiresAt);
             showToast("Success", "API Key rotated", "success");
             setNewSecret(rawSecret);
-            onSuccess();
         } catch (e: any) {
             setError(handleTransactionError(e));
         } finally {

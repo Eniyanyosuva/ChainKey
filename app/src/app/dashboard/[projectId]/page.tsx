@@ -8,7 +8,7 @@ import {
     getProgram, getApiKeyPDA,
     fetchAllKeysForProject, keyStatus,
     handleTransactionError, renderBN, renderScopes,
-    closeUsageAccount, closeApiKey, closeProject,
+    closeUsageAccount, closeApiKey, closeProject, closeProjectForced,
 } from "../../../utils/chainkey";
 import { useToast } from "../../../context/ToastContext";
 import CopyButton from "../../../components/CopyButton";
@@ -38,6 +38,7 @@ export default function ProjectPage() {
     const [showScopes, setShowScopes] = useState<any>(null);
     const [showRateLimit, setShowRateLimit] = useState<any>(null);
     const [showInspect, setShowInspect] = useState<any>(null);
+    const [showForceDelete, setShowForceDelete] = useState(false);
 
     const load = useCallback(async () => {
         if (!publicKey || !wallet) {
@@ -126,24 +127,67 @@ export default function ProjectPage() {
         setActionLoading(true);
         try {
             const program = getProgram(wallet.adapter, connection);
-            showToast("Cleanup Started", "Closing all keys and usage accounts...", "info");
+            showToast("Cleanup Started", `Closing ${keys.length} keys and usage accounts...`, "info");
+
+            let closedCount = 0;
+            let errorCount = 0;
 
             // 1. Close all usage accounts and api keys
             for (const k of keys) {
-                if (k.usage) {
-                    await closeUsageAccount(program, publicKey, projectPda, k.pda);
+                try {
+                    if (k.usage) {
+                        await closeUsageAccount(program, publicKey, projectPda, k.pda);
+                    }
+                    await closeApiKey(program, publicKey, projectPda, k.pda);
+                    closedCount++;
+                } catch (e: any) {
+                    console.error(`Failed to close key #${k.index}:`, e);
+                    errorCount++;
                 }
-                await closeApiKey(program, publicKey, projectPda, k.pda);
+            }
+
+            if (errorCount > 0) {
+                showToast("Cleanup Partial", `Closed ${closedCount} keys, but ${errorCount} failed. Attempting to close project anyway...`, "warning");
             }
 
             // 2. Close project account
-            await closeProject(program, publicKey, projectPda);
+            try {
+                await closeProject(program, publicKey, projectPda);
+                showToast("Success", "Project and all accounts deleted. Rent reclaimed.", "success");
+                window.location.href = "/dashboard";
+            } catch (e: any) {
+                const err = handleTransactionError(e);
 
-            showToast("Success", "Project and all accounts deleted. Rent reclaimed.", "success");
-            window.location.href = "/dashboard";
-        } catch (e) {
+                if (err.message.includes("ProjectHasKeys")) {
+                    showToast("Closure Blocked", "Standard closure failed because the program still thinks there are active keys. You may need to use 'Force Delete'.", "error");
+                    setShowForceDelete(true);
+                } else {
+                    showToast(`Project Closure Failed`, err.message, "error");
+                }
+                // Refresh data to show current state
+                await load();
+            }
+        } catch (e: any) {
             const err = handleTransactionError(e);
             showToast(err.title, err.message, err.type);
+        }
+        setActionLoading(false);
+    };
+
+    const handleForceDelete = async () => {
+        if (!publicKey || !wallet || !projectPda) return;
+        const confirmed = window.confirm("DANGER: This will bypass account checks and FORCE the project account to close. Use this ONLY if standard deletion is failing due to state corruption. Continue?");
+        if (!confirmed) return;
+
+        setActionLoading(true);
+        try {
+            const program = getProgram(wallet.adapter, connection);
+            await closeProjectForced(program, publicKey, projectPda);
+            showToast("Success", "Project forced closed and rent reclaimed.", "success");
+            window.location.href = "/dashboard";
+        } catch (e: any) {
+            const err = handleTransactionError(e);
+            showToast("Force Delete Failed", err.message, "error");
         }
         setActionLoading(false);
     };
@@ -332,6 +376,23 @@ export default function ProjectPage() {
                         {actionLoading ? "Deleting..." : "Delete Project"}
                     </button>
                 </div>
+
+                {showForceDelete && (
+                    <div style={{ background: "rgba(239, 68, 68, 0.1)", border: "2px dashed rgba(239, 68, 68, 0.4)", borderRadius: 12, padding: 20, marginTop: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div>
+                            <div style={{ fontWeight: 700, color: "var(--danger)", marginBottom: 4 }}>Force Delete Required</div>
+                            <div style={{ fontSize: 13, color: "var(--text3)" }}>Standard deletion failed. This usually means some API key records are out of sync. Force deleting will reclaim all project rent regardless of key states.</div>
+                        </div>
+                        <button
+                            className="btn btn-danger"
+                            style={{ background: "var(--danger)", color: "white" }}
+                            disabled={actionLoading}
+                            onClick={handleForceDelete}
+                        >
+                            {actionLoading ? "Processing..." : "FORCE DELETE"}
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* Modals */}
@@ -341,7 +402,7 @@ export default function ProjectPage() {
                     currentKeyCount={project.totalKeys}
                     defaultRateLimit={project.defaultRateLimit}
                     onClose={() => setShowIssue(false)}
-                    onSuccess={load}
+                    onSuccess={() => { load(); setShowIssue(false); }}
                 />
             )}
             {showVerify && (
@@ -355,7 +416,7 @@ export default function ProjectPage() {
                     keyData={showRotate}
                     projectPDA={projectPda}
                     onClose={() => setShowRotate(null)}
-                    onSuccess={load}
+                    onSuccess={() => { load(); setShowRotate(null); }}
                 />
             )}
             {showScopes && (
@@ -363,7 +424,7 @@ export default function ProjectPage() {
                     keyData={showScopes}
                     projectPDA={projectPda}
                     onClose={() => setShowScopes(null)}
-                    onSuccess={load}
+                    onSuccess={() => { load(); setShowScopes(null); }}
                 />
             )}
             {showRateLimit && (
@@ -371,7 +432,7 @@ export default function ProjectPage() {
                     keyData={showRateLimit}
                     projectPDA={projectPda}
                     onClose={() => setShowRateLimit(null)}
-                    onSuccess={load}
+                    onSuccess={() => { load(); setShowRateLimit(null); }}
                 />
             )}
             {showInspect && (
