@@ -812,12 +812,193 @@ describe("ChainKey — API Key Manager", () => {
         .rpc();
 
       const after = await provider.connection.getBalance(authority.publicKey);
-      console.log(
-        "    Rent reclaimed:",
-        (after - before) / anchor.web3.LAMPORTS_PER_SOL,
-        "SOL"
-      );
       assert.isAbove(after, before - 10000);
+    });
+
+    it("Rejects project closure if keys still exist", async () => {
+      try {
+        await program.methods
+          .closeProject()
+          .accounts({
+            project: projectPDA,
+            authority: authority.publicKey,
+            systemProgram: SystemProgram.programId,
+          })
+          .rpc();
+        assert.fail("Should have thrown");
+      } catch (e: any) {
+        assert.include(e.message, "ProjectHasKeys");
+      }
+    });
+
+    it("Closes key #0 and reclaims SOL", async () => {
+      const before = await provider.connection.getBalance(authority.publicKey);
+
+      await program.methods
+        .closeApiKey()
+        .accounts({
+          project: projectPDA,
+          apiKey: apiKeyPDA,
+          authority: authority.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      const after = await provider.connection.getBalance(authority.publicKey);
+      const project = await program.account.project.fetch(projectPDA);
+
+      // key_count should now be 3 (we issued keys 0, 1, 2, 3; closed key 0)
+      assert.equal(project.keyCount, 3);
+      assert.isAbove(after, before - 10000);
+    });
+
+    it("Closes key #3 (lifecycle key)", async () => {
+      const key3PDA = getApiKeyPDA(projectPDA, 3, program.programId);
+      await program.methods
+        .closeApiKey()
+        .accounts({
+          project: projectPDA,
+          apiKey: key3PDA,
+          authority: authority.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+    });
+
+    it("Closes key #2 (revoked key)", async () => {
+      const key2PDA = getApiKeyPDA(projectPDA, 2, program.programId);
+      const usage2PDA = getUsagePDA(key2PDA, program.programId);
+
+      await program.methods
+        .closeUsageAccount()
+        .accounts({
+          project: projectPDA,
+          apiKey: key2PDA,
+          usage: usage2PDA,
+          authority: authority.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      await program.methods
+        .closeApiKey()
+        .accounts({
+          project: projectPDA,
+          apiKey: key2PDA,
+          authority: authority.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+    });
+
+    it("Closes key #1", async () => {
+      const key1PDA = getApiKeyPDA(projectPDA, 1, program.programId);
+      const usage1PDA = getUsagePDA(key1PDA, program.programId);
+
+      await program.methods
+        .closeUsageAccount()
+        .accounts({
+          project: projectPDA,
+          apiKey: key1PDA,
+          usage: usage1PDA,
+          authority: authority.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      await program.methods
+        .closeApiKey()
+        .accounts({
+          project: projectPDA,
+          apiKey: key1PDA,
+          authority: authority.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      const project = await program.account.project.fetch(projectPDA);
+      assert.equal(project.keyCount, 0);
+    });
+
+    it("Closes project account and reclaims SOL", async () => {
+      const before = await provider.connection.getBalance(authority.publicKey);
+
+      await program.methods
+        .closeProject()
+        .accounts({
+          project: projectPDA,
+          authority: authority.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      const after = await provider.connection.getBalance(authority.publicKey);
+      assert.isAbove(after, before - 10000);
+
+      try {
+        await program.account.project.fetch(projectPDA);
+        assert.fail("Project should be gone");
+      } catch (e: any) {
+        assert.include(e.message, "Account does not exist");
+      }
+    });
+
+    it("10. Forced Project Closure", async () => {
+      const forceProjectId = Array.from({ length: 16 }, () => Math.floor(Math.random() * 256));
+      const [forceProjectPDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from("project"), authority.publicKey.toBuffer(), Buffer.from(forceProjectId)],
+        program.programId
+      );
+
+      // Create a temporary project
+      await program.methods
+        .createProject(forceProjectId, "Force Test", "Testing forced closure", 100)
+        .accounts({ project: forceProjectPDA, authority: authority.publicKey })
+        .rpc();
+
+      // Issue a key but don't close it
+      const [forceKeyPDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from("api_key"), forceProjectPDA.toBuffer(), Buffer.from(new Uint16Array([0]).buffer)],
+        program.programId
+      );
+      const [forceUsagePDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from("usage"), forceKeyPDA.toBuffer()],
+        program.programId
+      );
+
+      await program.methods
+        .issueApiKey(0, "Force Key", Array(32).fill(0), new anchor.BN(0), null, null)
+        .accounts({
+          project: forceProjectPDA,
+          api_key: forceKeyPDA,
+          usage: forceUsagePDA,
+          authority: authority.publicKey,
+        })
+        .rpc();
+
+      // Regular closure should fail
+      try {
+        await program.methods
+          .closeProject()
+          .accounts({ project: forceProjectPDA, authority: authority.publicKey })
+          .rpc();
+        assert.fail("Should have failed with ProjectHasKeys");
+      } catch (e: any) {
+        assert.include(e.message, "ProjectHasKeys");
+      }
+
+      // Forced closure should succeed
+      await program.methods
+        .closeProjectForced()
+        .accounts({ project: forceProjectPDA, authority: authority.publicKey })
+        .rpc();
+
+      try {
+        await program.account.project.fetch(forceProjectPDA);
+        assert.fail("Project should be gone after force close");
+      } catch (e: any) {
+        assert.include(e.message, "Account does not exist");
+      }
     });
   });
 });

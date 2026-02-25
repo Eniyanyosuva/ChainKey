@@ -39,6 +39,7 @@ pub mod api_key_manager {
         project.default_rate_limit = default_rate_limit;
         project.total_keys = 0;
         project.active_keys = 0;
+        project.key_count = 0;
         project.created_at = Clock::get()?.slot;
         project.bump = ctx.bumps.project;
 
@@ -115,6 +116,7 @@ pub mod api_key_manager {
 
             project.total_keys += 1;
             project.active_keys += 1;
+            project.key_count += 1;
         }
 
         {
@@ -312,13 +314,31 @@ pub mod api_key_manager {
         Ok(())
     }
 
-    pub fn close_api_key(_ctx: Context<CloseApiKey>) -> Result<()> {
+    pub fn close_api_key(ctx: Context<CloseApiKey>) -> Result<()> {
+        let project = &mut ctx.accounts.project;
+        let api_key = &ctx.accounts.api_key;
+        
+        project.key_count = project.key_count.saturating_sub(1);
+        if api_key.status == KeyStatus::Active {
+            project.active_keys = project.active_keys.saturating_sub(1);
+        }
+        
         Ok(())
     }
 
     pub fn close_project(ctx: Context<CloseProject>) -> Result<()> {
         let project = &ctx.accounts.project;
-        require!(project.total_keys == 0, ApiKeyError::ProjectHasKeys);
+        msg!("Closing project: {:?}", project.key());
+        msg!("Authority in account: {:?}", project.authority);
+        msg!("Authority in context: {:?}", ctx.accounts.authority.key());
+        require!(project.key_count == 0, ApiKeyError::ProjectHasKeys);
+        Ok(())
+    }
+
+    pub fn close_project_forced(ctx: Context<CloseProject>) -> Result<()> {
+        let project = &ctx.accounts.project;
+        msg!("FORCED closing project: {:?}", project.key());
+        msg!("Remaining keys at time of force close: {}", project.key_count);
         Ok(())
     }
 }
@@ -337,6 +357,7 @@ pub struct Project {
     pub active_keys: u16,
     pub created_at: u64,
     pub bump: u8,
+    pub key_count: u16,
 }
 
 impl Project {
@@ -349,7 +370,8 @@ impl Project {
         + 2
         + 2
         + 8
-        + 1;
+        + 1
+        + 2;
 }
 
 #[account]
@@ -435,7 +457,7 @@ pub struct TransferProjectAuthority<'info> {
     #[account(
         mut,
         seeds = [PROJECT_SEED, authority.key().as_ref(), &project.project_id],
-        bump = project.bump,
+        bump,
         has_one = authority @ ApiKeyError::Unauthorized,
     )]
     pub project: Account<'info, Project>,
@@ -448,7 +470,7 @@ pub struct IssueApiKey<'info> {
     #[account(
         mut,
         seeds = [PROJECT_SEED, authority.key().as_ref(), &project.project_id],
-        bump = project.bump,
+        bump,
         has_one = authority @ ApiKeyError::Unauthorized,
     )]
     pub project: Account<'info, Project>,
@@ -480,7 +502,7 @@ pub struct VerifyApiKey<'info> {
     #[account(
         mut,
         seeds = [USAGE_SEED, api_key.key().as_ref()],
-        bump = usage.bump,
+        bump,
     )]
     pub usage: Account<'info, UsageAccount>,
     #[account(mut)]
@@ -492,14 +514,14 @@ pub struct VerifyApiKey<'info> {
 pub struct RotateApiKey<'info> {
     #[account(
         seeds = [PROJECT_SEED, authority.key().as_ref(), &project.project_id],
-        bump = project.bump,
+        bump,
         has_one = authority @ ApiKeyError::Unauthorized,
     )]
     pub project: Account<'info, Project>,
     #[account(
         mut,
         seeds = [API_KEY_SEED, project.key().as_ref(), &api_key.key_index.to_le_bytes()],
-        bump = api_key.bump,
+        bump,
         has_one = project @ ApiKeyError::KeyProjectMismatch,
     )]
     pub api_key: Account<'info, ApiKey>,
@@ -510,14 +532,14 @@ pub struct RotateApiKey<'info> {
 pub struct UpdateApiKey<'info> {
     #[account(
         seeds = [PROJECT_SEED, authority.key().as_ref(), &project.project_id],
-        bump = project.bump,
+        bump,
         has_one = authority @ ApiKeyError::Unauthorized,
     )]
     pub project: Account<'info, Project>,
     #[account(
         mut,
         seeds = [API_KEY_SEED, project.key().as_ref(), &api_key.key_index.to_le_bytes()],
-        bump = api_key.bump,
+        bump,
         has_one = project @ ApiKeyError::KeyProjectMismatch,
     )]
     pub api_key: Account<'info, ApiKey>,
@@ -529,14 +551,14 @@ pub struct RevokeApiKey<'info> {
     #[account(
         mut,
         seeds = [PROJECT_SEED, authority.key().as_ref(), &project.project_id],
-        bump = project.bump,
+        bump,
         has_one = authority @ ApiKeyError::Unauthorized,
     )]
     pub project: Account<'info, Project>,
     #[account(
         mut,
         seeds = [API_KEY_SEED, project.key().as_ref(), &api_key.key_index.to_le_bytes()],
-        bump = api_key.bump,
+        bump,
         has_one = project @ ApiKeyError::KeyProjectMismatch,
     )]
     pub api_key: Account<'info, ApiKey>,
@@ -547,7 +569,7 @@ pub struct RevokeApiKey<'info> {
 pub struct CloseUsageAccount<'info> {
     #[account(
         seeds = [PROJECT_SEED, authority.key().as_ref(), &project.project_id],
-        bump = project.bump,
+        bump,
         has_one = authority @ ApiKeyError::Unauthorized,
     )]
     pub project: Account<'info, Project>,
@@ -556,7 +578,7 @@ pub struct CloseUsageAccount<'info> {
         mut,
         close = authority,
         seeds = [USAGE_SEED, api_key.key().as_ref()],
-        bump = usage.bump,
+        bump,
     )]
     pub usage: Account<'info, UsageAccount>,
     #[account(mut)]
@@ -567,8 +589,9 @@ pub struct CloseUsageAccount<'info> {
 #[derive(Accounts)]
 pub struct CloseApiKey<'info> {
     #[account(
+        mut,
         seeds = [PROJECT_SEED, authority.key().as_ref(), &project.project_id],
-        bump = project.bump,
+        bump,
         has_one = authority @ ApiKeyError::Unauthorized,
     )]
     pub project: Account<'info, Project>,
@@ -576,7 +599,7 @@ pub struct CloseApiKey<'info> {
         mut,
         close = authority,
         seeds = [API_KEY_SEED, project.key().as_ref(), &api_key.key_index.to_le_bytes()],
-        bump = api_key.bump,
+        bump,
         has_one = project @ ApiKeyError::KeyProjectMismatch,
     )]
     pub api_key: Account<'info, ApiKey>,
@@ -591,7 +614,7 @@ pub struct CloseProject<'info> {
         mut,
         close = authority,
         seeds = [PROJECT_SEED, authority.key().as_ref(), &project.project_id],
-        bump = project.bump,
+        bump,
         has_one = authority @ ApiKeyError::Unauthorized,
     )]
     pub project: Account<'info, Project>,

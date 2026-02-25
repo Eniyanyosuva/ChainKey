@@ -15,7 +15,6 @@ export default function VerifyKeyModal({ keyData, onClose }: Props) {
     const { connection } = useConnection();
     const [secret, setSecret] = useState("");
     const [scopeInput, setScopeInput] = useState("");
-    const [dryRun, setDryRun] = useState(true);
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<{ ok: boolean; msg: string; type?: string; count?: number } | null>(null);
 
@@ -41,26 +40,11 @@ export default function VerifyKeyModal({ keyData, onClose }: Props) {
                 }
             }
 
-            const response = await verifyApiKey(program, publicKey, keyData.pda, hash, requiredScope, dryRun);
+            await verifyApiKey(program, publicKey, keyData.pda, hash, requiredScope);
 
-            let isValid = true;
-            if (dryRun) {
-                // Determine simulation success from multiple signals
-                const hasTrueValue = response === true || (response && response.value === true);
-                const hasEvent = response.events?.some((e: any) => e.name === "ApiKeyVerified" && e.data?.isValid === true);
-                const hasSuccessLog = response.logs?.some((l: string) =>
-                    l.includes("ApiKeyVerified") ||
-                    l.includes("Program return: 1") ||
-                    l.includes("Program return: AQ==") ||
-                    l.toLowerCase().includes("success")
-                );
-
-                isValid = hasTrueValue || hasEvent || hasSuccessLog;
-            } else {
-                // For RPC, we check if failedVerifications is 0 (it resets on success)
-                const key = await (program.account as any).apiKey.fetch(keyData.pda);
-                isValid = key.failedVerifications === 0;
-            }
+            // For RPC, we check if failedVerifications is 0 (it resets on success)
+            const key = await (program.account as any).apiKey.fetch(keyData.pda);
+            const isValid = key.failedVerifications === 0;
 
             if (!isValid) {
                 setResult({ ok: false, msg: "Invalid key — hash mismatch or scope violation" });
@@ -78,7 +62,7 @@ export default function VerifyKeyModal({ keyData, onClose }: Props) {
             }
             setResult({
                 ok: true,
-                msg: dryRun ? "✓ VALID — Key hash matches (Dry Run)" : "✓ VERIFIED — Key is VALID",
+                msg: "✓ VERIFIED — Key is VALID",
                 type: "success",
                 count
             });
@@ -146,18 +130,7 @@ export default function VerifyKeyModal({ keyData, onClose }: Props) {
                     <div className="form-hint">Leave empty for basic verification. Hex (0x01) or Dec (1) supported.</div>
                 </div>
 
-                <div className="form-group" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
-                    <input
-                        type="checkbox"
-                        id="dryRunToggle"
-                        checked={dryRun}
-                        onChange={e => setDryRun(e.target.checked)}
-                        style={{ width: 16, height: 16, cursor: "pointer" }}
-                    />
-                    <label htmlFor="dryRunToggle" style={{ fontSize: 13, fontWeight: 600, cursor: "pointer", color: "var(--text1)" }}>
-                        Dry Run (FREE — uses simulation)
-                    </label>
-                </div>
+                <div style={{ marginBottom: 20 }}></div>
 
                 {result && (
                     <div className={`result-box ${result.type ? `result-${result.type}` : (result.ok ? "result-success" : "result-error")}`}>

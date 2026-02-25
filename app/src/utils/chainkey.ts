@@ -174,8 +174,7 @@ export async function verifyApiKey(
     wallet: PublicKey,
     apiKeyPDA: PublicKey,
     presentedHash: Uint8Array,
-    requiredScope: BN,
-    simulate: boolean = false
+    requiredScope: BN
 ): Promise<any> {
     const usagePDA = getUsagePDA(apiKeyPDA);
     // Explicitly convert Uint8Array to number array for Anchor compatibility
@@ -184,9 +183,6 @@ export async function verifyApiKey(
         .verifyApiKey(hashArray, requiredScope)
         .accounts({ apiKey: apiKeyPDA, usage: usagePDA, verifier: wallet });
 
-    if (simulate) {
-        return method.simulate();
-    }
     return method.rpc();
 }
 

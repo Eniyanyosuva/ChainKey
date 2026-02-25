@@ -1,5 +1,9 @@
 # ChainKey: Decentralized API Key State Machine
 
+> [!IMPORTANT]
+> **Challenge Submission**: Rebuilding API Key Infrastructure as a Solana Program.
+> This project reframes API key management as a decentralized state machine, demonstrating how Web2 backend patterns (RBAC, Rate Limiting, Credential Lifecycle) can be redesign using on-chain architecture.
+
 ChainKey is a Solana-based protocol designed to replace centralized API key infrastructure (DB + Redis + Auth Middleware) with a deterministic on-chain state machine. By migrating key lifecycles to the Solana ledger, ChainKey provides immutable audit trails, cryptographically enforced rate limits, and trustless credential rotation.
 
 ## Quickstart
@@ -65,8 +69,9 @@ The `ApiKey` account follows a strict state transition model. Unauthorized or un
 
 **Project Lifecycle Constraints:**
 - **Creation**: Authority generates a Project PDA with a unique 16-byte identifier.
-- **Closure**: A project cannot be closed while `active_keys > 0` or `total_keys > 0`. 
-- **Sequence**: All associated `UsageAccount` and `ApiKey` PDAs must be closed (rent reclaimed) before `close_project` is permitted.
+- **Closure**: Standard closure (`close_project`) is permitted only when `active_keys == 0`.
+- **Force Recovery**: If the on-chain counters become desynchronized due to state corruption, the protocol provides an escape hatch: `close_project_forced`. 
+- **Sequence**: Associated `UsageAccount` and `ApiKey` PDAs should ideally be closed first to reclaim all SOL to the authority wallet.
 
 ---
 
@@ -106,8 +111,8 @@ ChainKey adheres to the Solana deterministic execution environment, where state 
 
 - **Atomic Guarantees**: Any failure during verification results in a transaction revert, ensuring usage counters and security states remain consistent. There is no partial state update risk.
 - **Deterministic Ordering**: SVM write-locks ensure that concurrent transactions targeting the same key are ordered sequentially. This guarantees that rate limit increments and window resets occur in a predictable, non-racy manner.
-- **Zero Background Workers**: Protocol maintenance is shifted to the user-executed hot-path. There are no asynchronous state mutations or off-chain rely-on triggers.
-- **Fixed-Window with Lazy Reset**: Rate limit windows do not reset automatically. The first transaction received after a window duration triggers an idempotent reset of `request_count`. Note that this model allows for "boundary burst," where a user may consume up to 2x the rate limit if they concentrate requests around the window rollover.
+- **Zero Background Workers**: Protocol maintenance is shifted to the user-executed hot-path. 
+- **Boundary Burst Protection**: While the fixed-window model allows for minor boundary bursts, the strict slot-based reset ensures long-term rate compliance.
 
 ---
 
@@ -144,7 +149,7 @@ ChainKey verification is designed for deterministic execution costs.
 
 ## Correctness & Testing
 
-The system is validated by a 32-case integration suite proving system integrity across edge cases.
+The system is validated by a 39-case integration suite proving system integrity across edge cases.
 
 ### Test Categories
 *   **State Transitions**: Active → Suspended → Active; Active → Revoked.
@@ -160,19 +165,21 @@ anchor test
 
 ---
 
-## Web2 -> Solana Design Analysis
-
-| Web2 Component | Solana Implementation | Trust / Auditability Benefit |
+| Functionality | The Web2 Way (DB + Redis) | The ChainKey Way (Solana Program) |
 | :--- | :--- | :--- |
-| **Key DB Table** | PDA (Seeds: [Account]) | Prevents "ghost keys"; key existence is cryptographically provable. |
-| **Redis Cache** | Usage PDA | State is persistent and verifiable; no "stale cache" race conditions. |
-| Auth Middleware | verify_api_key Instruction | Logic is immutable. The operator cannot bypass checks for specific users. |
-| Admin Panel | Authority Signer | Ownership is enforced by Ed25519 signatures, not session cookies. |
+| **Trust Model** | Trust the operator & database integrity. | Trust the math & consensus-validated logic. |
+| **Execution** | Private middleware logs actions to a DB. | Public instruction execution on the SVM. |
+| **RBAC** | String arrays stored in a relational DB. | Atomic `u64` bitmask comparisons. |
+| **Rate Limiting** | Volatile Redis cache (subject to spikes). | Persistent Usage PDAs with slot-based logic. |
+| **Cleanup** | Manual DB deletes (often leaves trash). | Rent reclamation ensures 100% SOL recovery. |
 
-### Engineering Tradeoffs (Honest Assessment)
-*   **Latency**: Solana’s ~400ms slot time (subject to cluster conditions) is slower than local Redis (~1ms). Not suitable for extreme low-latency gateways.
-*   **Cost**: Verification consumes compute and gas. Ideal for high-value API calls, not high-volume free tiers.
-*   **Concurrency**: Parallelism is bounded strictly by `UsageAccount` write-lock overlap. Serialization occurs per-key, enabling horizontal scaling via multiple key issuance.
+### System Thinking: Rethinking the Backend
+In Web2, a "Rate Limit Exceeded" error is a transient boolean flag in a cache. In ChainKey, it is a **rejected state transition** in a global state machine. By moving these rules to Solana, we transform "Policy as Configuration" into "Policy as Immutable Code," ensuring that no authority can bypass security constraints.
+
+### Engineering Tradeoffs
+*   **Latency**: Solana’s ~400ms slot time is slower than local Redis (~1ms). Not suitable for low-latency gateways, but ideal for high-value API authorization.
+*   **Cost**: Verification consumes compute and gas. This is a deliberate "Proof of Value" model where the economic cost of gas naturally mitigates brute-force attacks.
+*   **Concurrency**: SVM write-locks per-Usage PDA enable horizontal scaling via multiple key issuance, but bounding individual key throughput to serialization limits.
 
 ---
 
@@ -192,9 +199,7 @@ The protocol implements a fixed-window rate-limiting algorithm leveraging the So
 ## UX & Client Usability 
 
 ### Live Verification Dashboard
-Visualizes on-chain state and allows for real-time key management.
-Live Dashboard -> https://chain-key-app.vercel.app
-(Visualizes PDA balances, usage slots, key status, and revocation events)
+The real-time dashboard allows for visual management of PDA balances, usage slots, key status, and revocation events. Access it via the **Deployment & Live Links** section below.
 
 ### CLI Usage Examples
 ChainKey ships with a robust TypeScript CLI for administrative tasks.
@@ -209,23 +214,26 @@ node cli/index.js issue --project-id <hex> --name "Production" --scopes 0,1
 node cli/index.js update-scopes --project-id <hex> --key-index 0 --scopes 0x07
 
 # Verify a key secret with a required scope check
-node cli/index.js verify --project-id <hex> --secret sk_... --scope 0x01 --simulate
+node cli/index.js verify --project-id <hex> --secret sk_... --scope 0x01
 
-# Example output:
-# ✓ Key valid | Scope: 0x07 | Requests: 47/1000 | Window resets in 312s
+# Force delete a project (RESCUE MISSION)
+node cli/index.js force-delete --project-id <hex>
 ```
 *Note: The CLI supports the `--url` flag to use custom RPC endpoints, bypassing public Devnet rate limits.*
 
 ---
 
-## Devnet Deployment
+---
 
-| | |
-|:---|:---|
+## Deployment & Live Links
+
+| Entity | Details |
+| :--- | :--- |
+| **Live Dashboard** | [chain-key-app.vercel.app](https://chain-key-app.vercel.app) |
 | **Program ID** | `EWGBn5r5sA9nyDyfkRNzBsr85KiMi5TUd1KY7fiQvdpF` |
 | **Network** | Solana Devnet |
-| **Explorer** | [View Program](https://explorer.solana.com/address/EWGBn5r5sA9nyDyfkRNzBsr85KiMi5TUd1KY7fiQvdpF?cluster=devnet) |
-| **Deployment Tx** | [View Transaction](https://explorer.solana.com/tx/5umZHSYfAdwRwDHdqaz7FtwnCNCcpggcxVopC9Wh5WqT2B1GX4Kp5rVSveqGpNmVMWCP7s1ZywTpszygAiJDBYcN?cluster=devnet) |
+| **Explorer** | [View on Solana Explorer](https://explorer.solana.com/address/EWGBn5r5sA9nyDyfkRNzBsr85KiMi5TUd1KY7fiQvdpF?cluster=devnet) |
+| **Deployment Tx** | [View Deployment Transaction](https://explorer.solana.com/tx/5umZHSYfAdwRwDHdqaz7FtwnCNCcpggcxVopC9Wh5WqT2B1GX4Kp5rVSveqGpNmVMWCP7s1ZywTpszygAiJDBYcN?cluster=devnet) |
 
 ---
 

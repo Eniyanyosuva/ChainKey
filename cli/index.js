@@ -252,7 +252,6 @@ async function verifyKey(args) {
   const scope = getArg(args, "--scope");
   const walletPath = getArg(args, "--wallet", "-w");
   const rpcUrl = getArg(args, "--url", "-u");
-  const simulate = hasFlag(args, "--simulate");
 
   if (!projectIdHex) { console.error("Error: --project-id is required"); process.exit(1); }
   if (!secret) { console.error("Error: --secret is required"); process.exit(1); }
@@ -264,40 +263,23 @@ async function verifyKey(args) {
   const usagePDA = getUsagePDA(apiKeyPDA);
   const hash = sha256(secret);
 
-  console.log(simulate ? "\nSimulating verification (Dry Run)..." : "\nVerifying key on Devnet...\n");
+  console.log("\nVerifying key on Devnet...\n");
 
   let isValid = false;
-  let response = null; // Declare response here to ensure it's always defined for explorerLink
-  if (simulate) {
-    const sim = await program.methods
-      .verifyApiKey(hash, parseScope(scope))
-      .accounts({
-        apiKey: apiKeyPDA,
-        usage: usagePDA,
-        verifier: wallet.publicKey,
-        systemProgram: SystemProgram.programId,
-      })
-      .simulate();
-    isValid = sim.value || sim.events.some(e => e.name === "apiKeyVerified");
-    if (isValid) {
-      console.log("✓ Simulation Successful (Dry Run)");
-    }
-  } else {
-    response = await program.methods
-      .verifyApiKey(hash, parseScope(scope))
-      .accounts({
-        apiKey: apiKeyPDA,
-        usage: usagePDA,
-        verifier: wallet.publicKey,
-        systemProgram: SystemProgram.programId,
-      })
-      .rpc();
+  let response = await program.methods
+    .verifyApiKey(hash, parseScope(scope))
+    .accounts({
+      apiKey: apiKeyPDA,
+      usage: usagePDA,
+      verifier: wallet.publicKey,
+      systemProgram: SystemProgram.programId,
+    })
+    .rpc();
 
-    // Fetch state since RPC returns Ok(false) on mismatch
-    const keyState = await program.account.apiKey.fetch(apiKeyPDA);
-    isValid = keyState.failedVerifications === 0;
-    console.log("Tx Signature:", response);
-  }
+  // Fetch state since RPC returns Ok(false) on mismatch
+  const keyState = await program.account.apiKey.fetch(apiKeyPDA);
+  isValid = keyState.failedVerifications === 0;
+  console.log("Tx Signature:", response);
 
   if (!isValid) {
     console.log("\n✗ FAILED — Key is INVALID (Hash mismatch or scope violation)\n");
@@ -652,7 +634,6 @@ function printHelp() {
     node cli/index.js list-keys --project-id <hex>
     node cli/index.js inspect project --project-id <hex>
     node cli/index.js inspect key --project-id <hex> --key-index 0
-    node cli/index.js verify --project-id <hex> --secret sk_... --simulate
     node cli/index.js close-project --project-id <hex> --url https://api.devnet.solana.com
   `);
 }
